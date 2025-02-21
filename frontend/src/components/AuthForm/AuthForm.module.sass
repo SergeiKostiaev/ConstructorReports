@@ -1,0 +1,78 @@
+@use "../../index" as idx
+
+.authFormContainer
+  display: flex
+  justify-content: center
+  align-items: center
+  min-height: 100vh
+  width: 100vw
+  background-color: idx.$main-auth
+  font-family: Montserrat, sans-serif
+  .authForm
+    display: flex
+    flex-direction: column
+    background-color: idx.$main-fonts-2
+    padding: 24px
+    border-radius: 8px
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1)
+    width: 100%
+    max-width: 400px
+    .authFormTitle
+      text-align: center
+      font-size: 24px
+      margin-bottom: 16px
+      color: #1f2937
+    .btn_enter
+      width: 80%
+      margin: 0 auto 20px
+      padding: 10px
+      color: #000000
+      background: none
+      border: 2px solid idx.$main-btn
+      border-radius: 10px
+      font-size: 16px
+      font-weight: 600
+      cursor: pointer
+      transition: 0.2s
+      &:hover
+        background-color: idx.$main-btn
+        color: white
+  .formGroup
+    width: 100%
+    margin-bottom: 16px
+    .formLabel
+      display: block
+      margin-bottom: 8px
+      color: #4b5563
+      font-weight: 600
+    .formInput
+      width: 100%
+      padding: 8px 12px
+      border: 2px solid #B8B8B8
+      border-radius: 5px
+      font-size: 16px
+      transition: border-color 0.2s
+      &:focus
+        outline: none
+        border-color: idx.$main-btn
+    .btn_send
+      width: 80%
+
+    .switchAuth
+      text-align: center
+      margin-top: 16px
+    .switchAuth a
+      color: #3b82f6
+      text-decoration: none
+      font-weight: 600
+      &:hover
+        text-decoration: underline
+.switchAuthText
+  text-align: center
+
+
+
+
+
+
+

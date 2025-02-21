@@ -1,0 +1,151 @@
+*, ::before, ::after {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: Montserrat;
+  font-size: 16px;
+}
+
+/*MAIN COLOR PROJECT*/
+a {
+  color: #30BAFF;
+  text-decoration: none;
+}
+
+.container {
+  width: 100%;
+}
+.container__btn {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 20px;
+  margin-bottom: 39px;
+}
+.container__btn .search {
+  font-family: "Montserrat", sans-serif;
+  border: 3px solid #B8B8B8;
+  border-radius: 8px;
+  padding: 9px 15px;
+  background-color: #E9E9E9;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  position: relative;
+  font-size: 16px;
+  max-width: 506px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-right: 15px;
+}
+.container__btn_item {
+  border: 3px solid #B8B8B8;
+  padding: 9px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 20px;
+}
+.container .table__wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.container .table__wrapper .table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.container .table__wrapper .table th, .container .table__wrapper .table td:not(.btn_icon) {
+  padding: 10px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+.container .table__wrapper .table th {
+  background-color: #f0f0f0;
+}
+.container .table__wrapper .table tbody tr {
+  cursor: pointer;
+}
+.container .table__wrapper .table tbody tr:hover {
+  background-color: #e9e9e9;
+}
+.container .table__wrapper .btn_icon {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  margin-left: 15px;
+}
+.container .table__wrapper .btn_icon img {
+  margin-right: 15px;
+  cursor: pointer;
+}
+.container .table__wrapper .btn_icon tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+.container .table__wrapper .btn_icon .selected {
+  background-color: #cceeff;
+}
+.container .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-left: 22px;
+}
+.container .actions button {
+  padding: 10px;
+  background-color: #30BAFF;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.container .actions button:disabled {
+  background-color: #ccc;
+}
+
+.customCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  user-select: none;
+}
+.customCheckbox .hiddenCheckbox {
+  display: none;
+}
+.customCheckbox .checkboxSwitch {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #E9E9E9;
+  border-radius: 6px;
+  position: relative;
+  transition: background-color 0.3s, border-color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+}
+.customCheckbox .checkboxSwitch::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 8px;
+  border: 3px solid white;
+  border-top: none;
+  border-right: none;
+  transform: rotate(-45deg);
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+.customCheckbox .hiddenCheckbox:checked + .checkboxSwitch {
+  background-color: #30BAFF;
+  border-color: #30BAFF;
+}
+.customCheckbox .hiddenCheckbox:checked + .checkboxSwitch::after {
+  opacity: 1;
+}
+
+/*# sourceMappingURL=Reports.module.css.map */

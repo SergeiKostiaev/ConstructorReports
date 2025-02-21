@@ -1,0 +1,139 @@
+@use "../../index" as idx
+
+.reportSelection
+  display: flex
+  flex-direction: column
+  select
+    margin-top: 15px
+    font-family: 'Montserrat', sans-serif
+    border: 3px solid idx.$border
+    border-radius: 8px
+    padding: 9px 15px
+    background-color: idx.$main-bg
+    appearance: none
+    -webkit-appearance: none
+    -moz-appearance: none
+    position: relative
+    font-size: 16px
+    max-width: 488px
+    width: 100%
+    box-sizing: border-box
+    cursor: pointer
+    margin-right: 15px
+    &::after
+      content: '▼'
+      position: absolute
+      right: 10px
+      top: 50%
+      transform: translateY(-50%)
+      font-size: 12px
+      color: idx.$border
+    &:hover, &:focus
+      border-color: idx.$border
+    option
+      font-family: 'Montserrat', sans-serif
+      font-size: 16px
+
+.columnSelection
+  width: 100%
+.columnButton
+  max-width: 250px
+  width: 100%
+  margin-bottom: 20px
+  &:not(:last-child)
+    margin-right: 15px
+    margin-bottom: 15px
+  .choose__name
+    max-width: 740px
+    display: flex
+    flex-wrap: wrap
+    justify-content: space-between
+
+
+.yAxisSelection, .chartTypeSelection
+  width: 100%
+  select
+    margin-top: 15px
+    font-family: 'Montserrat', sans-serif
+    border: 3px solid idx.$border
+    border-radius: 8px
+    padding: 9px 15px
+    background-color: idx.$main-bg
+    appearance: none
+    -webkit-appearance: none
+    -moz-appearance: none
+    position: relative
+    font-size: 16px
+    max-width: 250px
+    width: 100%
+    box-sizing: border-box
+    cursor: pointer
+    margin-left: 15px
+    &::after
+      content: '▼'
+      position: absolute
+      right: 10px
+      top: 50%
+      transform: translateY(-50%)
+      font-size: 12px
+      color: idx.$border
+    &:hover, &:focus
+      border-color: idx.$border
+    option
+      font-family: 'Montserrat', sans-serif
+      font-size: 16px
+
+.downloadButtons
+  display: flex
+  margin-top: 40px
+  button
+    max-width: 250px
+    width: 100%
+    background-color: idx.$main-btn
+    padding: 10px
+    border: none
+    border-radius: 15px
+    transition: 0.3s ease
+    cursor: pointer
+    color: idx.$main-bg
+    font-weight: 600
+    &:hover
+      background-color: idx.$main-btn
+      color: idx.$main-fonts
+
+
+.chartContainer
+  display: grid
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))
+  gap: 16px
+  margin-top: 20px
+
+.chart
+  width: 100%
+  height: 200px
+  border: 1px solid #ddd
+  border-radius: 8px
+  padding: 10px
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1)
+
+.downloadButtons
+  margin-top: 20px
+  display: flex
+  gap: 10px
+
+.columnButton
+  margin: 5px
+  padding: 8px 12px
+  border: 1px solid #ccc
+  border-radius: 4px
+  cursor: pointer
+  background-color: #f9f9f9
+  transition: background-color 0.3s
+
+  &.selected
+    background-color: idx.$main-btn
+    color: white
+
+.error
+  color: red
+  margin-top: 10px

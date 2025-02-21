@@ -1,0 +1,52 @@
+@use "../../index" as idx
+
+.accessControl
+  width: 100%
+  .userList
+    display: flex
+    flex-direction: column
+    padding-left: 0
+    .userItem
+      display: flex
+      align-items: center
+      justify-content: space-between
+      list-style-type: none
+      .userInfo
+        display: flex
+        p:first-child
+          margin-right: 30px
+    .actionButtons
+      display: flex
+      align-items: center
+      margin-left: 150px
+      .allowButton
+        display: flex
+        align-items: center
+        max-width: 170px
+        width: 100%
+        height: 42px
+        margin-right: 15px
+        border: 2px solid idx.$border
+        padding: 10px
+        border-radius: 15px
+        margin-bottom: 15px
+        cursor: pointer
+        &:hover
+          border: 2px solid idx.$main-btn
+        p
+          margin-right: 10px
+      .denyButton
+        display: flex
+        align-items: center
+        max-width: 170px
+        width: 100%
+        height: 42px
+        border: 2px solid idx.$border
+        padding: 10px
+        border-radius: 15px
+        margin-bottom: 15px
+        cursor: pointer
+        &:hover
+          border: 2px solid idx.$main-btn
+        p
+          margin-right: 10px

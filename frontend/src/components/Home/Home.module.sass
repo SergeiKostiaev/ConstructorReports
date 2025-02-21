@@ -1,0 +1,127 @@
+@use "../../index" as idx
+
+.container
+
+  width: 100%
+  height: 100%
+  font-family: Montserrat, sans-serif
+  font-size: 20px
+  h3
+    margin-bottom: 20px
+  &__wrap
+    max-width: 1540px
+    width: 100%
+    margin: 0 auto
+    padding: 51px 0
+    .header
+      width: 100%
+      display: flex
+      justify-content: space-between
+      align-items: center
+      margin-bottom: 43px
+      .header_wrap
+        width: 100%
+      &h1
+        font-size: 40px
+      &__btn
+        //max-width: 627px
+        display: flex
+        align-items: center
+        .header__itemBtn
+          display: flex
+          justify-content: center
+          align-items: center
+          margin-left: 50px
+          border-radius: 13px
+          background-color: idx.$main-btn
+          padding: 16px 21px
+          margin-right: 15px
+          height: 56px
+          cursor: pointer
+          color: idx.$main-bg
+          font-weight: 500
+          & svg
+            margin-right: 23px
+    .tabs
+      display: flex
+      align-items: flex-start
+      padding: 0
+      margin: 0
+      .active
+        background-color: idx.$main-bg
+        border-bottom: 1px solid idx.$main-bg
+        z-index: 1
+      .tablinks
+        font-family: Montserrat
+        width: fit-content
+        background-color: idx.$main-btn
+        border: none
+        border-radius: 10px 10px 0 0
+        padding: 19px 25px
+        margin: 0 10px 0 0
+        cursor: pointer
+        transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease
+        display: inline-block
+        color: idx.$main-bg
+        font-size: 18px
+        font-weight: 500
+        &:hover
+          background-color: #e0e0e0
+          color: idx.$main-fonts
+      .tablinks.active
+        background-color: idx.$main-bg
+        color: idx.$main-fonts
+
+  .content
+    width: 100%
+    background-color: idx.$main-bg
+    padding: 40px 56px
+    border-bottom-left-radius: 22px
+    border-bottom-right-radius: 22px
+    border-top-right-radius: 22px
+    &__nameDoc
+      display: flex
+      flex-direction: column
+      align-items: flex-start
+      .content__nameItem
+        display: flex
+        max-width: 506px
+        width: 100%
+        &_inpt
+          display: block
+          padding: 16px 15px
+          margin-right: 15px
+          border-radius: 6px
+          font-size: 20px
+          border: 1px solid idx.$border
+          &:focus
+            outline: none
+        &_select
+          max-width: 133px
+          width: 100%
+          display: block
+          padding: 16px 15px
+          border-radius: 6px
+          font-size: 20px
+          border: 1px solid idx.$border
+          background: none
+
+
+
+.tabContent
+  width: 100%
+  background-color: white
+  border-radius: 0 10px 10px 10px
+  margin-top: -1px
+
+
+.exit
+  cursor: pointer
+  transition: 0.3s ease-in-out
+  &:hover
+    color: idx.$main-btn
+
+.error_user
+  text-align: center
+  margin: 50px auto
+  font-weight: 600
