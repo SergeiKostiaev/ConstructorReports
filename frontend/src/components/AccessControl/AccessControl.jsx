@@ -100,8 +100,10 @@ const AccessControl = () => {
             <ul className={styles.userList}>
                 {users.map((user) => (
                     <li key={user.id} className={styles.userItem}>
-                        <div className={styles.userInfo}>
+                        <div className={styles.userName}>
                             <p>{user.name}</p>
+                        </div>
+                        <div className={styles.userEmail}>
                             <p>{user.email}</p>
                         </div>
                         <div className={styles.actionButtons}>
@@ -110,16 +112,16 @@ const AccessControl = () => {
                                     className={styles.allowButton}
                                     onClick={() => handleAccessChange(user.id, true)}
                                 >
-                                    <p>Разрешить</p>
-                                    <img src={agree} alt="agree"/>
+                                    {/*<p>Разрешить</p>*/}
+                                    <img src={agree} alt="" width={18} height={18} />
                                 </button>
                             )}
                             <button
                                 className={styles.denyButton}
                                 onClick={() => handleAccessChange(user.id, false)}
                             >
-                                <p>Удалить</p>
-                                <img src={close} alt="deny"/>
+                                {/*<p>Запретить</p>*/}
+                                <img src={close} alt=""/>
                             </button>
                         </div>
                     </li>

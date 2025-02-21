@@ -71,7 +71,6 @@ const Analytics = () => {
         if (selectedReports.length > 0) {
             const report = selectedReports[0];
 
-            // Reset columns when selecting a new report
             setLocalColumns([]);
             setTextColumns([]);
             setDisplayedColumns([]);
@@ -105,8 +104,8 @@ const Analytics = () => {
                     return {
                         label: column,
                         data,
-                        backgroundColor: `rgba(${(index * 70) % 255}, ${(index * 100) % 255}, ${(index * 150) % 255}, 0.8)`,
-                        borderColor: `rgba(${(index * 70) % 255}, ${(index * 100) % 255}, ${(index * 150) % 255}, 1)`,
+                        backgroundColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`, // Brighter color
+                        borderColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`, // Brighter border
                         borderWidth: 1,
                     };
                 });
@@ -137,8 +136,8 @@ const Analytics = () => {
                         datasets: [{
                             label: `Текстовые данные из ${column}`,
                             data: textValues,
-                            backgroundColor: textLabels.map((_, index) => `rgba(${(index * 70) % 255}, ${(index * 100) % 255}, ${(index * 150) % 255}, 0.8)`),
-                            borderColor: textLabels.map((_, index) => `rgba(${(index * 70) % 255}, ${(index * 100) % 255}, ${(index * 150) % 255}, 1)`),
+                            backgroundColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`), // Brighter color
+                            borderColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`), // Brighter border
                             borderWidth: 1,
                         }]
                     };
@@ -148,6 +147,7 @@ const Analytics = () => {
             setTextChartDatasets(newTextChartDatasets);
         }
     }, [selectedReports, displayedColumns, displayedTextColumns]);
+
 
     const handleSelectReport = async (reportId) => {
         setLoading(true);
