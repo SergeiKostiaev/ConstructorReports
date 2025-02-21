@@ -37,7 +37,7 @@ const Reports = ({ onReportSelect }) => {
 
                 if (response.ok && data.success) {
                     const formattedReports = data.data.map((report) => {
-                        const category = categories.find(cat => cat.id === report.category_id);
+                        // const category = categories.find(cat => cat.id === report.category_id);
                         return {
                             id: report.id,
                             name: report.name,
@@ -46,11 +46,11 @@ const Reports = ({ onReportSelect }) => {
                             created_at: report.created_at,
                             updated_at: report.updated_at,
                             creator: report.user?.name || 'Неизвестно',
-                            category: category ? category.name : 'Загруженные отчеты',
+                            category: report.category?.name ? report.category?.name  : 'Загруженные отчеты', // category ? category.name : 'Загруженные отчеты'
                         };
                     });
 
-                    setReports(formattedReports); // Обновляем список отчетов
+                    setReports(formattedReports);
 
                     // Показываем уведомление только один раз
                     if (!newReportLoaded) {
@@ -115,7 +115,7 @@ const Reports = ({ onReportSelect }) => {
         fetchCategories();
         fetchUsers();
         fetchReports();
-    }, []); // Empty dependency array to run only once
+    }, []);
 
     const handleDeleteReport = async (id, basket = true) => {
         try {
