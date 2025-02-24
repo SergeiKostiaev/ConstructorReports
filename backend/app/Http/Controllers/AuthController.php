@@ -23,6 +23,11 @@ class AuthController extends Controller
         ]);
 
         if (!$validateFail) {
+            if (isset($request->user) && $request->user->isSuperAdmin()) {
+                $data['role_id'] = User::$idAdmin;
+                $data['confirmed'] = 1;
+            }
+
             $data['password'] = Hash::make($data['password']);
             $data['company_id'] = Company::where('name', $data['company_id'])->first()->id;
             User::create($data);
@@ -66,7 +71,7 @@ class AuthController extends Controller
         $user = User::with(['role', 'company']);
         if ($request->s) $user->where('name', 'like', '%' . $request->s .'%');
         if ($request->role_id) $user->where('role_id', $request->role_id);
-        if ($request->company_id) $user->where('company_id', $request->company_id);
+        if ($request->company_id || !$request->user->isSuperAdmin()) $user->where('company_id', $request->user->isSuperAdmin() ? $request->company_id : $request->user->company_id);
         if ($request->confirmed) $user->where('confirmed', 1);
         return success($user->get());
 

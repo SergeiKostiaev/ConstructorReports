@@ -11,7 +11,18 @@ class CompanyController extends Controller
         return success(Company::all());
     }
 
-    public function confirmed() {
+    public function add(Request $request) {
+        $data = $request->all();
 
+        $validateFail = validateFailed($request->all(), [
+            'name' => 'required|string|max:255|unique:companies'
+        ]);
+
+        if (!$validateFail) {
+            Company::create($data);
+            return success('Компания добавлена');
+        }
+
+        return $validateFail;
     }
 }
