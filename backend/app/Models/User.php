@@ -11,7 +11,8 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    static private int $idAdmin = 2;
+    static public int $idAdmin = 2;
+    static private int $idSuperAdmin = 3;
 
     static private string $notFound = 'Пользователь не найден';
 
@@ -41,7 +42,11 @@ class User extends Authenticatable
     ];
 
     public function isAdmin() {
-        return $this->role_id == self::$idAdmin;
+        return $this->role_id == self::$idAdmin || $this->role_id == self::$idSuperAdmin;
+    }
+
+    public function isSuperAdmin() {
+        return $this->role_id == self::$idSuperAdmin;
     }
 
     public function confirmed($id) {

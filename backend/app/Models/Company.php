@@ -11,6 +11,8 @@ class Company extends Model
 
     protected $table = 'companies';
 
+    static private string $notFound = 'Компания не найдена';
+
     /**
      * The attributes that are mass assignable.
      *

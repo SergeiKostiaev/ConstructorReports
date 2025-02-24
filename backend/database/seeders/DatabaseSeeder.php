@@ -21,7 +21,10 @@ class DatabaseSeeder extends Seeder
             'name' => 'Сотрудник'
         ]);
         Role::create([
-            'name' => 'Менеджер'
+            'name' => 'Админ'
+        ]);
+        Role::create([
+            'name' => 'Супер админ'
         ]);
 
         Company::create([
@@ -44,6 +47,14 @@ class DatabaseSeeder extends Seeder
             'confirmed' => 1,
             'name' => 'Adminov Manager',
             'email' => 'admin@example.com',
+            'password' => Hash::make("1234"),
+        ]);
+
+        User::create([
+            'role_id' => 3,
+            'confirmed' => 1,
+            'name' => 'Superov Admin',
+            'email' => 'super_admin@example.com',
             'password' => Hash::make("1234"),
         ]);
 

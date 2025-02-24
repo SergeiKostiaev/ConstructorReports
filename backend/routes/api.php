@@ -1,4 +1,4 @@
-
+<?php
 use App\Http\Controllers\AnalyticController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
@@ -34,6 +34,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('/user', [AuthController::class, 'delete']);
         Route::get('/roles', [AuthController::class, 'roles']);
         Route::get('/companies', [CompanyController::class, 'list']);
+    });
+
+    Route::middleware('checkSuperAdmin')->group(function () {
+        Route::post('/user/admin', [AuthController::class, 'register']);
+        Route::post('/company', [CompanyController::class, 'add']);
     });
 });
 
