@@ -22,7 +22,7 @@ const Reports = ({ onReportSelect }) => {
     const [newReportLoaded, setNewReportLoaded] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const reportsPerPage = 5;
+    const reportsPerPage = 6;
 
     useEffect(() => {
         const fetchReports = async () => {

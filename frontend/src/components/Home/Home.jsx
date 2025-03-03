@@ -60,7 +60,7 @@ const Home = () => {
                 </DataContainer>
             ),
         },
-        ...(userRole === '2' || userRole === '3' ? [{
+        ...(userRole === 2 || userRole === 3 ? [{
             title: 'Доступ',
             content: (
                 <DataContainer title="Доступ">
