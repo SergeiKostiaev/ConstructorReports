@@ -19,8 +19,10 @@ const Reports = ({ onReportSelect }) => {
     const [selectedBasket, setSelectedBasket] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [loading, setLoading] = useState(false);
-    const [newReportLoaded, setNewReportLoaded] = useState(false); // Track if report is successfully loaded
-    const [showToast, setShowToast] = useState(false); // State to control toast visibility
+    const [newReportLoaded, setNewReportLoaded] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const reportsPerPage = 5;
 
     useEffect(() => {
         const fetchReports = async () => {
@@ -181,32 +183,38 @@ const Reports = ({ onReportSelect }) => {
         }
     };
 
-    // const handleAddReport = async (newReportData) => {
-    //     try {
-    //         const response = await fetch(`${API_URL}/api/report`, {
-    //             method: 'POST',
-    //             headers: {
-    //                 'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-    //                 'Content-Type': 'application/json',
-    //             },
-    //             body: JSON.stringify(newReportData),
-    //         });
-    //
-    //         const data = await response.json();
-    //
-    //         if (response.ok && data.success) {
-    //             console.log("Отчет успешно добавлен");
-    //             // После добавления отчета обновляем список отчетов
-    //             await fetchReports();
-    //         } else {
-    //             console.error('Не удалось добавить отчет');
-    //             toast.error("Ошибка при добавлении отчета.");
-    //         }
-    //     } catch (error) {
-    //         console.error("Ошибка при добавлении отчета:", error);
-    //         toast.error("Ошибка при добавлении отчета.");
-    //     }
-    // };
+    const handleExportReport = async (reportId, extension) => {
+        try {
+            const response = await fetch(`${API_URL}/api/report/export/${reportId}?format=${extension}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка при загрузке отчета');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `report_${reportId}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error("Ошибка экспорта отчета:", error);
+            toast.error("Ошибка при экспорте отчета.");
+        }
+    };
+
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
 
     const handleUserChange = (event) => {
         const userId = Number(event.target.value);
@@ -244,25 +252,57 @@ const Reports = ({ onReportSelect }) => {
         }
     });
 
+    const indexOfLastReport = currentPage * reportsPerPage;
+    const indexOfFirstReport = indexOfLastReport - reportsPerPage;
+    const currentReports = filteredReports.slice(indexOfFirstReport, indexOfLastReport);
+    const totalPages = Math.ceil(filteredReports.length / reportsPerPage);
+
+    const renderPagination = () => {
+        const pages = [];
+        const totalNumbers = 3;
+
+        if (totalPages <= 5) {
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+        } else {
+            pages.push(1);
+            if (currentPage > 3) {
+                pages.push("...");
+            }
+
+            let startPage = Math.max(2, currentPage - 1);
+            let endPage = Math.min(totalPages - 1, currentPage + 1);
+
+            for (let i = startPage; i <= endPage; i++) {
+                pages.push(i);
+            }
+
+            if (currentPage < totalPages - 2) {
+                pages.push("...");
+            }
+
+            pages.push(totalPages);
+        }
+        return pages;
+    };
+
+    const pages = renderPagination();
 
     return (
         <div className={styles.container}>
             {loading && <div>Загрузка...</div>}
             <div className={styles.container__btn}>
-                <select className={styles.container__btn_item} onChange={handleUserChange}>
+                <select className={styles.container__btn_item} onChange={(e) => setSelectedUser(Number(e.target.value) || null)}>
                     <option value="0">Выбор сотрудника</option>
                     {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                            {user.name}
-                        </option>
+                        <option key={user.id} value={user.id}>{user.name}</option>
                     ))}
                 </select>
-                <select className={styles.container__btn_item} onChange={handleCategoryChange}>
+                <select className={styles.container__btn_item} onChange={(e) => setSelectedCategory(Number(e.target.value) || null)}>
                     <option value="0">Выбор категории</option>
                     {categories.map((category) => (
-                        <option key={category.id || 0} value={category.id || 0}>
-                            {category.name}
-                        </option>
+                        <option key={category.id || 0} value={category.id || 0}>{category.name}</option>
                     ))}
                 </select>
                 <input
@@ -270,10 +310,10 @@ const Reports = ({ onReportSelect }) => {
                     className={styles.search}
                     placeholder="Поиск"
                     value={searchQuery}
-                    onChange={handleSearchChange}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <label className={styles.customCheckbox}>
-                    <input type="checkbox" className={styles.hiddenCheckbox} onChange={handleBasket} />
+                    <input type="checkbox" className={styles.hiddenCheckbox} onChange={() => setSelectedBasket(!selectedBasket)} />
                     <span className={styles.checkboxSwitch}></span>
                     В корзине
                 </label>
@@ -290,7 +330,7 @@ const Reports = ({ onReportSelect }) => {
                     </tr>
                     </thead>
                     <tbody>
-                    {filteredReports.map((report) => (
+                    {currentReports.map((report) => (
                         <tr
                             key={report.id}
                             className={selectedReport?.id === report.id ? styles.selected : ''}
@@ -312,10 +352,25 @@ const Reports = ({ onReportSelect }) => {
                     </tbody>
                 </table>
             </div>
+            <div className={styles.pagination}>
+                <div className={styles["page-numbers"]}>
+                    {pages.map((page, index) =>
+                            page === "..." ? (
+                                <span key={index} className={styles.dots}>...</span>
+                            ) : (
+                                <span
+                                    key={index}
+                                    className={`${styles["page-item"]} ${currentPage === page ? styles.active : ""}`}
+                                    onClick={() => handlePageChange(page)}
+                                >
+                                    {page}
+                                </span>
+                            )
+                    )}
+                </div>
+            </div>
 
-            {showToast && (
-                <ToastContainer />
-            )}
+            {showToast && <ToastContainer />}
         </div>
     );
 };

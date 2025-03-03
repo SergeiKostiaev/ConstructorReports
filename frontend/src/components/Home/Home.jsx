@@ -15,19 +15,20 @@ const Home = () => {
     const { logout } = useAuth();
     const [active, setActive] = useState(0);
     const [selectedReportId, setSelectedReportId] = useState(null);
-    const userRole = localStorage.getItem('role');
-    const isConfirmed = userRole === '2' || userRole === '3' || (userRole === '1' && localStorage.getItem('confirmed') !== 'null');
+    const userRole = Number(localStorage.getItem('role'));
+    const isConfirmed =
+        userRole === 2 ||
+        userRole === 3 ||
+        (userRole === 1 && localStorage.getItem('confirmed') === 'true');
+
 
     const onReportSelect = (id) => {
         setSelectedReportId(id);
         setActive(1);
     };
 
-    // Fetch reports after file upload
     const fetchReports = () => {
-        // Logic to fetch updated reports
         console.log('Fetching reports...');
-        // You can use the same logic as you have in your `Reports` component to update the report list
     };
 
     const items = isConfirmed ? [
@@ -102,7 +103,7 @@ const Home = () => {
             .then((data) => {
                 if (data.success) {
                     toast.success("Отчет успешно импортирован", { position: "top-right" });
-                    fetchReports(); // Refresh reports after successful upload
+                    fetchReports();
                 } else {
                     toast.error(`Ошибка: ${JSON.stringify(data)}`, { position: "top-right" });
                 }

@@ -15,7 +15,7 @@
       border: 3px solid idx.$border
       border-radius: 8px
       padding: 9px 15px
-      background-color: idx.$main-bg
+      //background-color: idx.$main-bg
       appearance: none
       -webkit-appearance: none
       -moz-appearance: none
@@ -123,3 +123,38 @@
 
     &::after
       opacity: 1
+
+.pagination
+  display: flex
+  align-items: center
+  justify-content: center
+  gap: 8px
+  margin-top: 20px
+
+  .page-numbers
+    display: flex
+    gap: 5px
+
+    .page-item
+      padding: 6px 10px
+      border: 1px solid idx.$main-bg
+      background-color: white
+      border-radius: 5px
+      cursor: pointer
+      transition: background 0.3s
+      text-align: center
+      min-width: 30px
+
+      &:hover
+        background-color: idx.$main-bg
+
+      &.active
+        background-color: idx.$main-btn
+        color: white
+        border-color: idx.$main-btn
+
+    .dots
+      padding: 6px 10px
+      min-width: 30px
+      text-align: center
+      color: #888

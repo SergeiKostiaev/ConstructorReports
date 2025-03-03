@@ -11,17 +11,24 @@ const AccessControl = () => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [token, setToken] = useState(null);
 
+    // useEffect(() => {
+    //     const role = localStorage.getItem('role');
+    //
+    //     if (role === '3') {
+    //         setIsAdmin(true);
+    //     } else if (role === '2') {
+    //         setIsAdmin(true);
+    //     }
+    //
+    //     const storedToken = localStorage.getItem('api_token');
+    //     setToken(storedToken);
+    // }, []);
     useEffect(() => {
         const role = localStorage.getItem('role');
 
-        if (role === '3') {
-            setIsAdmin(true);
-        } else if (role === '2') {
+        if (role === '3' || role === '2') {
             setIsAdmin(true);
         }
-
-        const storedToken = localStorage.getItem('api_token');
-        setToken(storedToken);
     }, []);
 
     useEffect(() => {
