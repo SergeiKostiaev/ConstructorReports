@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import styles from './AccessControl.module.sass';
-// import { User } from "./AccessControl.interface.ts";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -14,7 +13,12 @@ const AccessControl = () => {
 
     useEffect(() => {
         const role = localStorage.getItem('role');
-        setIsAdmin(role === '2');
+
+        if (role === '3') {
+            setIsAdmin(true);
+        } else if (role === '2') {
+            setIsAdmin(true);
+        }
 
         const storedToken = localStorage.getItem('api_token');
         setToken(storedToken);
@@ -27,14 +31,17 @@ const AccessControl = () => {
                     const response = await fetch(`${API_URL}/api/users`, {
                         method: 'GET',
                         headers: {
-                            'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                            'Authorization': `Bearer ${localStorage.getItem('api_token')}`,
                             'Content-Type': 'application/json',
                         },
                     });
                     const data = await response.json();
 
                     if (data.success) {
-                        setUsers(data.data);
+                        const updatedUsers = data.data.map(user =>
+                            user.role === '3' ? { ...user, confirmed: true, accessAllowed: true } : user
+                        );
+                        setUsers(updatedUsers);
                     }
                 } catch (error) {
                     console.error("Ошибка при загрузке пользователей:", error);
@@ -112,7 +119,6 @@ const AccessControl = () => {
                                     className={styles.allowButton}
                                     onClick={() => handleAccessChange(user.id, true)}
                                 >
-                                    {/*<p>Разрешить</p>*/}
                                     <img src={agree} alt="" width={18} height={18} />
                                 </button>
                             )}
@@ -120,8 +126,7 @@ const AccessControl = () => {
                                 className={styles.denyButton}
                                 onClick={() => handleAccessChange(user.id, false)}
                             >
-                                {/*<p>Запретить</p>*/}
-                                <img src={close} alt=""/>
+                                <img src={close} alt="" />
                             </button>
                         </div>
                     </li>

@@ -16,7 +16,7 @@ const Home = () => {
     const [active, setActive] = useState(0);
     const [selectedReportId, setSelectedReportId] = useState(null);
     const userRole = localStorage.getItem('role');
-    const isConfirmed = userRole === '2' || (userRole === '1' && localStorage.getItem('confirmed') !== 'null');
+    const isConfirmed = userRole === '2' || userRole === '3' || (userRole === '1' && localStorage.getItem('confirmed') !== 'null');
 
     const onReportSelect = (id) => {
         setSelectedReportId(id);
@@ -59,7 +59,7 @@ const Home = () => {
                 </DataContainer>
             ),
         },
-        ...(userRole === '2' ? [{
+        ...(userRole === '2' || userRole === '3' ? [{
             title: 'Доступ',
             content: (
                 <DataContainer title="Доступ">
