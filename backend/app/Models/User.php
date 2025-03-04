@@ -11,8 +11,10 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    static public int $idUser = 1;
+
     static public int $idAdmin = 2;
-    static private int $idSuperAdmin = 3;
+    static public int $idSuperAdmin = 3;
 
     static private string $notFound = 'Пользователь не найден';
 
@@ -40,6 +42,10 @@ class User extends Authenticatable
         'password',
         'api_token'
     ];
+
+    public function isUser() {
+        return $this->role_id == self::$idUser;
+    }
 
     public function isAdmin() {
         return $this->role_id == self::$idAdmin || $this->role_id == self::$idSuperAdmin;
