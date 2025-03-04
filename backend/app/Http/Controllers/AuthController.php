@@ -46,9 +46,9 @@ class AuthController extends Controller
         ]);
 
         if (!$validateFail) {
-            $user = User::where('email',  $request->email)->first();
+            $user = User::with('company')->where('email',  $request->email)->first();
             $checkCompany = Company::where('name', $request->company_id)->first();
-            if (!$user || !Hash::check($request->password, $user->password) || !$checkCompany)
+            if (!$user || !Hash::check($request->password, $user->password) || !$checkCompany || $user->company->name !== $request->company_id)
             {
                 return error('Неверные данные для авторизации', 401);
             }
