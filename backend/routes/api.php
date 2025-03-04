@@ -28,8 +28,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/report', [ReportController::class, 'change']);
     Route::post('/report', [ReportController::class, 'add']);
 
+    Route::get('/users', [AuthController::class, 'list']);
+
     Route::middleware('checkAdmin')->group(function () {
-        Route::get('/users', [AuthController::class, 'list']);
         Route::patch('/user/confirmed', [AuthController::class, 'confirmed']);
         Route::delete('/user', [AuthController::class, 'delete']);
         Route::get('/roles', [AuthController::class, 'roles']);
@@ -39,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('checkSuperAdmin')->group(function () {
         Route::post('/user/admin', [AuthController::class, 'register']);
         Route::post('/company', [CompanyController::class, 'add']);
+        Route::delete('/company/{id}', [CompanyController::class, 'remove']);
     });
 });
 

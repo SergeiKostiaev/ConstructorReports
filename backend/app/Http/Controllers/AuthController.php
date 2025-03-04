@@ -70,9 +70,11 @@ class AuthController extends Controller
         // TODO возвращать отчеты только определенной компании, а не всех
         $user = User::with(['role', 'company']);
         if ($request->s) $user->where('name', 'like', '%' . $request->s .'%');
-        if ($request->role_id) $user->where('role_id', $request->role_id);
+        if ($request->role_id && $request->user->isAdmin()) $user->where('role_id', $request->role_id);
         if ($request->company_id || !$request->user->isSuperAdmin()) $user->where('company_id', $request->user->isSuperAdmin() ? $request->company_id : $request->user->company_id);
         if ($request->confirmed) $user->where('confirmed', 1);
+        if ($request->user->isUser()) $user->where('role_id', '<>', User::$idAdmin);
+
         return success($user->get());
 
 //        Role::with('users')->get()

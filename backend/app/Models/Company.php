@@ -21,4 +21,11 @@ class Company extends Model
     protected $fillable = [
         'name',
     ];
+
+    static public function remove($id) {
+        $company = Company::where('id', $id)->first();
+        if (!$company) return error(self::$notFound, 404);
+        $company->delete();
+        return success('Компания удалена');
+    }
 }
