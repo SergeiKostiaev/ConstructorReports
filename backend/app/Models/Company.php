@@ -11,6 +11,8 @@ class Company extends Model
 
     protected $table = 'companies';
 
+    static public string $mainCompany = 'CONSTRUCTORHACK2024';
+
     static private string $notFound = 'Компания не найдена';
 
     /**
