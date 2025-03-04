@@ -47,15 +47,19 @@ class AuthController extends Controller
 
         if (!$validateFail) {
             $user = User::with('company')->where('email',  $request->email)->first();
-            $checkCompany = Company::where('name', $request->company_id)->first();
-            if (!$user || !Hash::check($request->password, $user->password) || !$checkCompany || $user->company->name !== $request->company_id)
-            {
+
+            if (!$user ||
+                !Hash::check($request->password, $user->password))
                 return error('Неверные данные для авторизации', 401);
+
+            if (($user->isSuperAdmin() && $request->company_id === Company::$mainCompany) ||
+                (isset($user->company->name) && $request->company_id === $user->company->name)
+            ) {
+                $user->generateToken();
+                return success(['api_token' => $user->api_token, 'user' => $user]);
             }
 
-            $user->generateToken();
-
-            return success(['api_token' => $user->api_token, 'user' => $user]);
+            return error('Неверные данные для авторизации', 401);
         }
 
         return $validateFail;
