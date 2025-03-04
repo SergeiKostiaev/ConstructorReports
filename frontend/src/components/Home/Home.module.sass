@@ -38,10 +38,14 @@
           margin-right: 15px
           height: 56px
           cursor: pointer
-          color: idx.$main-bg
+          color: idx.$main-bg-all
           font-weight: 500
+          transition: 0.3s
           & svg
             margin-right: 23px
+          &:hover
+            background-color: #e0e0e0
+            color: idx.$main-fonts
     .tabs
       display: flex
       align-items: flex-start
@@ -61,7 +65,7 @@
         cursor: pointer
         transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease
         display: inline-block
-        color: idx.$main-bg
+        color: idx.$main-bg-all
         font-size: 18px
         font-weight: 500
         &:hover
@@ -70,6 +74,41 @@
       .tablinks.active
         background-color: idx.$main-fonts-2
         color: idx.$main-fonts
+
+    .avatarContainer
+      position: relative
+      display: flex
+      align-items: center
+      gap: 10px
+      cursor: pointer
+
+    .userName
+      font-size: 16px
+      font-weight: bold
+      color: #333
+
+    .defaultAvatar
+      color: idx.$main-auth-profil
+
+    .menu
+      position: absolute
+      top: 40px
+      right: 0
+      background-color: idx.$main-bg-all
+      border-radius: 8px
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1)
+      padding: 8px 0
+      min-width: 180px
+      z-index: 10
+
+    .menuItem
+      padding: 10px 16px
+      color: #333
+      font-size: 14px
+      transition: background 0.2s ease-in-out
+
+      &:hover
+        background-color: #f5f5f5
 
   .content
     width: 100%

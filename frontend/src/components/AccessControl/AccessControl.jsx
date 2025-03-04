@@ -35,10 +35,14 @@ const AccessControl = () => {
             try {
                 const [usersRes, companiesRes] = await Promise.all([
                     fetch(`${API_URL}/api/users`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: {
+                            'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                        }
                     }),
                     fetch(`${API_URL}/api/companies`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: {
+                            'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                        }
                     })
                 ]);
 
@@ -60,7 +64,7 @@ const AccessControl = () => {
     }, [isSuperAdmin, isAdmin, token]);
 
     const generateCompanyId = () => {
-        setCompanyId(`COMP-${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
+        setCompanyId(`ID-${Math.random().toString(36).substr(2, 5).toUpperCase()}`);
     };
 
     const handleCreateCompanyAndAdmin = async () => {
@@ -70,89 +74,116 @@ const AccessControl = () => {
         }
 
         try {
-            // Создание компании
+            const generatedCompanyId = `ID-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+
             const companyResponse = await fetch(`${API_URL}/api/company`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ name: companyId })
+                body: JSON.stringify({ name: generatedCompanyId })
             });
 
             const companyData = await companyResponse.json();
-            if (!companyResponse.ok || !companyData.name) {
+            console.log("Ответ при создании компании:", companyData);
+
+            if (!companyResponse.ok || !companyData.success) {
                 alert(`Ошибка при создании компании: ${JSON.stringify(companyData)}`);
                 return;
             }
 
-            // Добавление администратора
+            const adminPayload = {
+                company_id: generatedCompanyId, // Теперь передаем строку
+                name: adminName,
+                email: adminEmail,
+                password: password
+            };
+
+            console.log("Отправляем запрос на создание администратора:", adminPayload);
+
             const adminResponse = await fetch(`${API_URL}/api/user/admin`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    company_id: companyId,
-                    name: adminName,
-                    email: adminEmail,
-                    password: password
-                })
+                body: JSON.stringify(adminPayload)
             });
 
             const adminData = await adminResponse.json();
-            if (!adminResponse.ok || !adminData.company_id) {
+            console.log("Ответ при создании администратора:", adminData);
+
+            if (!adminResponse.ok || !adminData.success) {
                 alert(`Ошибка при создании админа: ${JSON.stringify(adminData)}`);
                 return;
             }
 
-            alert("Компания и администратор успешно созданы!");
+            console.log("Компания и администратор успешно созданы!");
 
-            // Обновление списка пользователей (запрос свежих данных с сервера)
-            const usersRes = await fetch(`${API_URL}/api/users`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            const usersData = await usersRes.json();
-            if (usersData.success) {
-                setUsers(usersData.data); // Обновляем весь список пользователей
-            }
-
-            // Очистка полей и генерация нового ID компании
+            // Очистка полей
             generateCompanyId();
             setAdminName('');
             setAdminEmail('');
             setPassword('');
         } catch (error) {
-            alert("Произошла ошибка при отправке запроса.");
+            console.log("Произошла ошибка при отправке запроса:", error);
         }
     };
 
-
     const handleAccessChange = async (userId, allow) => {
         try {
+            if (!allow) {
+                // Если "Отклонить", отправляем DELETE-запрос
+                const response = await fetch(`${API_URL}/api/user`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId }) // Удаляем пользователя
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    console.log(data.message || "Ошибка при удалении пользователя");
+                    return;
+                }
+
+                console.log(data.message); // Логируем сообщение "Пользователь удален"
+
+                // Удаляем пользователя из списка
+                setUsers(users.filter(user => user.id !== userId));
+                return;
+            }
+
+            // Если "Подтвердить", отправляем PATCH-запрос
             const response = await fetch(`${API_URL}/api/user/confirmed`, {
                 method: 'PATCH',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ user_id: userId, confirmed: allow })
+                body: JSON.stringify({ user_id: userId, confirmed: true })
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                alert(data.message || "Ошибка при изменении доступа");
+                console.log(data.message || "Ошибка при изменении доступа");
                 return;
             }
 
-            setUsers(users.map(user => user.id === userId ? { ...user, confirmed: allow } : user));
+            console.log("Пользователь подтвержден");
+
+            // Обновляем статус пользователя
+            setUsers(users.map(user => user.id === userId ? { ...user, confirmed: true } : user));
         } catch (error) {
             console.error("Ошибка обновления доступа:", error);
         }
     };
+
 
 
     const handleDeleteCompany = async (companyId) => {
@@ -161,42 +192,45 @@ const AccessControl = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/companies/${company_id}`, {
+            const response = await fetch(`${API_URL}/api/company/${companyId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json'
                 }
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                throw new Error("Ошибка при удалении компании");
+                throw new Error(data.message || "Ошибка при удалении компании");
             }
 
             // Обновляем список компаний после удаления
             setCompanies(companies.filter(company => company.id !== companyId));
-            alert("Компания успешно удалена!");
+            console.log("Компания успешно удалена!");
         } catch (error) {
             console.error("Ошибка при удалении компании:", error);
-            alert("Ошибка при удалении компании");
+            console.log("Ошибка при удалении компании");
         }
     };
 
+
     return (
         <div className={styles.accessControl}>
-            {isSuperAdmin && <h2>Админ панель: SuperAdmin</h2>}
-            {isAdmin && <h2>Админ панель</h2>}
+            {/*{isSuperAdmin && <h3>Админ панель: SuperAdmin</h3>}*/}
+            {/*{isAdmin && <h2>Админ панель</h2>}*/}
 
             {isSuperAdmin && (
                 <div className={styles.createCompanyForm}>
-                    <h3>Новая компания</h3>
+                    <p>Добавление новой компании</p>
                     <div className={styles.companyId}>
                         <input type="text" value={companyId} readOnly />
                         <button onClick={generateCompanyId}>🔄</button>
                     </div>
                     <input
                         type="text"
-                        placeholder="Имя администратора"
+                        placeholder="ФИО администратора"
                         value={adminName}
                         onChange={(e) => setAdminName(e.target.value)}
                     />
@@ -218,14 +252,14 @@ const AccessControl = () => {
 
             {isSuperAdmin && (
                 <>
-                    <h4>Список компаний</h4>
+                    <h3>Список компаний</h3>
                     <ul>
                         {companies.length > 0 ? (
                             companies.map(company => (
                                 <li key={company.id} className={styles.companyItem}>
                                     <span>{company.name} ({company.created_at})</span>
                                     <button className={styles.deleteButton} onClick={() => handleDeleteCompany(company.id)}>
-                                        ❌
+                                        <img src={close} alt="delete"/>
                                     </button>
                                 </li>
                             ))
@@ -237,32 +271,37 @@ const AccessControl = () => {
             )}
 
             {isSuperAdmin && <h3>Список администраторов</h3>}
+            {isAdmin && <h3>Список пользователей</h3>}
+
             <ul className={styles.userList}>
-                {users.length > 0 ? (
-                    users.map(user => (
-                        <li key={user.id} className={styles.userItem}>
-                            <div className={styles.userName}>
-                                <p>{user.name}</p>
-                            </div>
-                            <div className={styles.userEmail}>
-                                <p>{user.email}</p>
-                            </div>
-                            <div className={styles.actionButtons}>
-                                {user.confirmed === null && (
-                                    <button className={styles.allowButton} onClick={() => handleAccessChange(user.id, true)}>
-                                        <img src={agree} alt="Разрешить" width={18} height={18} />
+                {users.filter(user => (isSuperAdmin && (user.role_id === 2)) || (isAdmin && user.role_id === 1)).length > 0 ? (
+                    users
+                        .filter(user => (isSuperAdmin && (user.role_id === 2)) || (isAdmin && user.role_id === 1))
+                        .map(user => (
+                            <li key={user.id} className={styles.userItem}>
+                                <div className={styles.userName}>
+                                    <p>{user.name}</p>
+                                </div>
+                                <div className={styles.userEmail}>
+                                    <p>{user.email}</p>
+                                </div>
+                                <div className={styles.actionButtons}>
+                                    {user.confirmed === null && (
+                                        <button className={styles.allowButton} onClick={() => handleAccessChange(user.id, true)}>
+                                            <img src={agree} alt="Разрешить" width={18} height={18} />
+                                        </button>
+                                    )}
+                                    <button className={styles.denyButton} onClick={() => handleAccessChange(user.id, false)}>
+                                        <img src={close} alt="Отклонить" />
                                     </button>
-                                )}
-                                <button className={styles.denyButton} onClick={() => handleAccessChange(user.id, false)}>
-                                    <img src={close} alt="Отклонить" />
-                                </button>
-                            </div>
-                        </li>
-                    ))
+                                </div>
+                            </li>
+                        ))
                 ) : (
-                    <p>Администраторов нет</p>
+                    <p>{isSuperAdmin ? "Администраторов нет" : "Пользователей нет"}</p>
                 )}
             </ul>
+
         </div>
     );
 };

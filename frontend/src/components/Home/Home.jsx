@@ -8,11 +8,19 @@ import DataContainer from "../DataContainer/DataContainer.jsx";
 import Reports from "../Reports/Reports.jsx";
 import ReportCreation from "../ReportCreation/ReportCreation.jsx";
 import Analytics from "../Analytics/Analytics.jsx";
+import {FaUmbrellaBeach, FaUserAstronaut, FaUserCircle} from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const Home = () => {
     const { logout } = useAuth();
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    // const name = localStorage.getItem("name") || "Гость";
+    // const initials = name !== "Гость"
+    //     ? name.split(" ").map((word) => word[0]).slice(2, 8).join("").toUpperCase()
+    //     : null;
+
     const [active, setActive] = useState(0);
     const [selectedReportId, setSelectedReportId] = useState(null);
     const userRole = Number(localStorage.getItem('role'));
@@ -21,14 +29,13 @@ const Home = () => {
         userRole === 3 ||
         (userRole === 1 && localStorage.getItem('confirmed') === 'true');
 
-
     const onReportSelect = (id) => {
         setSelectedReportId(id);
         setActive(1);
     };
 
     const fetchReports = () => {
-        console.log('Fetching reports...');
+        console.log('Загрузка отчетов...');
     };
 
     const items = isConfirmed ? [
@@ -61,13 +68,13 @@ const Home = () => {
             ),
         },
         ...(userRole === 2 || userRole === 3 ? [{
-            title: 'Доступ',
+            title: "Доступ",
             content: (
-                <DataContainer title="Доступ">
+                <DataContainer title={`Доступ: ${userRole === 2 ? "Админ" : "Супер Админ"}`}>
                     <AccessControl />
                 </DataContainer>
             ),
-        }] : []),
+        }] : [])
     ] : [];
 
     const openTab = (e) => {
@@ -94,9 +101,7 @@ const Home = () => {
 
         fetch(`${API_URL}/api/report/import`, {
             method: 'POST',
-            headers: {
-                Authorization: `Bearer ${bearerToken}`,
-            },
+            headers: { Authorization: `Bearer ${bearerToken}` },
             body: data,
         })
             .then((response) => response.json())
@@ -108,7 +113,7 @@ const Home = () => {
                     toast.error(`Ошибка: ${JSON.stringify(data)}`, { position: "top-right" });
                 }
             })
-            .catch((error) => {
+            .catch(() => {
                 toast.error("Ошибка загрузки файла", { position: "top-right" });
             });
     };
@@ -131,8 +136,19 @@ const Home = () => {
                             </div>
                         )}
                     </div>
-                    <p>Добро пожаловать, {localStorage.getItem('name') || 'гость'}!</p>
-                    <p className={styles.exit} onClick={logout}>Выйти</p>
+                    <div className={styles.avatarContainer} onMouseEnter={() => setMenuOpen(true)} onMouseLeave={() => setMenuOpen(false)}>
+                        <p className={styles.userName}>{localStorage.getItem('name') || 'Гость'}</p>
+                        <FaUserCircle className={styles.defaultAvatar} size={40} />
+
+                        {menuOpen && (
+                            <div className={styles.menu}>
+                                <p className={styles.menuItem} onClick={logout}>
+                                    Выйти
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
                 </div>
 
                 <div className={styles.tabs}>

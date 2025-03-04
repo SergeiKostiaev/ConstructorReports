@@ -119,10 +119,16 @@ const Reports = ({ onReportSelect }) => {
         fetchReports();
     }, []);
 
-    const handleDeleteReport = async (id, basket = true) => {
+    const handleDeleteReport = async (id, inBasket) => {
         try {
+            // Проверяем, является ли пользователь админом
+            const isAdmin = user.role_id === 2;
+
+            // Формируем тело запроса
             const dataForm = { report_id: id };
-            if (basket) dataForm.basket = 1;
+            if (!inBasket) {
+                dataForm.basket = 1; // Если не в корзине, просто отправляем в нее
+            }
 
             const response = await fetch(`${API_URL}/api/report`, {
                 method: 'DELETE',
@@ -135,20 +141,31 @@ const Reports = ({ onReportSelect }) => {
 
             const data = await response.json();
 
-            if (response.ok && data.success) {
+            if (!response.ok) {
+                console.error(data.message || 'Ошибка при удалении отчета');
+                return;
+            }
+
+            // Если отчет НЕ в корзине → отправляем в корзину
+            if (!inBasket) {
                 console.log(`Отчет с id ${id} перемещен в корзину.`);
                 setReports((prevReports) =>
                     prevReports.map((report) =>
                         report.id === id ? { ...report, basket: "1" } : report
                     )
                 );
-            } else {
-                console.error(data.message || 'Не удалось удалить отчет');
+            }
+            // Если отчет уже был в корзине и удаляет админ → удаляем навсегда
+            else if (isAdmin) {
+                console.log(`Отчет с id ${id} удален из базы.`);
+                setReports((prevReports) => prevReports.filter((report) => report.id !== id));
             }
         } catch (error) {
             console.error('Ошибка при удалении отчета:', error);
         }
     };
+
+
 
     const handleEditReport = (id) => {
         onReportSelect(id);
@@ -289,6 +306,9 @@ const Reports = ({ onReportSelect }) => {
 
     const pages = renderPagination();
 
+    const user = JSON.parse(localStorage.getItem("role") || "{}");
+    // console.log(user)
+
     return (
         <div className={styles.container}>
             {loading && <div>Загрузка...</div>}
@@ -342,10 +362,58 @@ const Reports = ({ onReportSelect }) => {
                             <td>{report.creator}</td>
                             <td>{report.category}</td>
                             <td className={styles.btn_icon}>
-                                {selectedBasket && <img src={ref50} width="24" alt="Восстановить" onClick={(e) => { e.stopPropagation(); handleRevertBasket(report.id); }} />}
-                                <img src={edit} alt="Редактировать" onClick={(e) => { e.stopPropagation(); handleEditReport(report.id); }} />
-                                <img src={del} alt="Удалить" onClick={(e) => { e.stopPropagation(); handleDeleteReport(report.id); }} />
-                                <img src={download} alt="Экспорт" onClick={(e) => { e.stopPropagation(); handleExportReport(report.id, report.extension); }} />
+                                {selectedBasket && (
+                                    <img
+                                        src={ref50}
+                                        width="24"
+                                        alt="Восстановить"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRevertBasket(report.id);
+                                        }}
+                                    />
+                                )}
+                                <img
+                                    src={edit}
+                                    alt="Редактировать"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditReport(report.id);
+                                    }}
+                                />
+                                <img
+                                    src={download}
+                                    alt="Экспорт"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleExportReport(report.id, report.extension);
+                                    }}
+                                />
+
+                                {!report.basket && (
+                                    <img
+                                        src={del}
+                                        alt="Удалить"
+
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteReport(report.id, false);
+                                        }}
+                                    />
+                                )}
+
+                                {/* Если отчет в корзине, удалить может только админ */}
+                                {report.basket && (user === 2 || user === 3) && (
+                                    <img
+                                        src={del}
+                                        alt="Удалить навсегда"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteReport(report.id, true);
+                                        }}
+                                    />
+                                )}
+
                             </td>
                         </tr>
                     ))}
