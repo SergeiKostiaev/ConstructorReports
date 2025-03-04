@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('checkSuperAdmin')->group(function () {
         Route::post('/user/admin', [AuthController::class, 'register']);
         Route::post('/company', [CompanyController::class, 'add']);
+        Route::delete('/company/{id}', [CompanyController::class, 'remove']);
     });
 });
 

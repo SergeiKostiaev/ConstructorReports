@@ -11,6 +11,10 @@ class CompanyController extends Controller
         return success(Company::all());
     }
 
+    public function remove($id) {
+        return Company::remove($id);
+    }
+
     public function add(Request $request) {
         $data = $request->all();
 
