@@ -155,7 +155,6 @@ const Reports = ({ onReportSelect }) => {
                     )
                 );
             }
-            // Если отчет уже был в корзине и удаляет админ → удаляем навсегда
             else if (isAdmin) {
                 console.log(`Отчет с id ${id} удален из базы.`);
                 setReports((prevReports) => prevReports.filter((report) => report.id !== id));

@@ -2,14 +2,13 @@ import React, { useState, useEffect } from "react";
 import styles from "./ReportCreation.module.sass";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Parser } from 'expr-eval';
 
 import screp from '../../assets/screp.svg';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-
 const ReportCreation = ({ idReport }) => {
-    console.log(idReport);
     const [customWhereColumns, setCustomWhereColumns] = useState([]);
     const [dataWhereColumns, setDataWhereColumns] = useState([]);
     const [dataHeaders, setDataHeaders] = useState([]);
@@ -173,45 +172,77 @@ const ReportCreation = ({ idReport }) => {
             });
     }, []);
 
+    const calculateYearsOfExperience = (date) => {
+        const startDate = new Date(date);
+        const currentDate = new Date();
+        const diffTime = currentDate - startDate;  // разница в миллисекундах
+        const diffYears = diffTime / (1000 * 3600 * 24 * 365);  // конвертируем в годы
+        return diffYears;
+    };
+
     const filterDataReport = () => {
         const arrayData = [...dataReport];
         const newArrayWhereData = [];
 
         customWhereColumns.forEach((column, iCol) => {
             if (column.fx) {
-                const formulaParts = column.fx.match(/^\[([^\]]+)]\s*([*/+\-])\s*(\d+)$/);
+                if (column.fx.includes('?')) {
+                    arrayData.forEach((record) => {
+                        try {
+                            const variables = {};
+                            customWhereColumns.forEach((col, index) => {
+                                variables[col.name] = record[index];
+                            });
 
-                if (formulaParts) {
-                    const [_, columnName, operator, operand] = formulaParts;
-                    const columnIndex = customWhereColumns.findIndex(col => col.name === columnName);
-
-                    if (columnIndex !== -1) {
-                        arrayData.forEach((record) => {
-                            const value = Number(record[columnIndex]);
-                            const numberOperand = Number(operand);
-
-                            if (!isNaN(value) && !isNaN(numberOperand)) {
-                                switch (operator) {
-                                    case "+":
-                                        record[iCol] = value + numberOperand;
-                                        break;
-                                    case "-":
-                                        record[iCol] = value - numberOperand;
-                                        break;
-                                    case "*":
-                                        record[iCol] = value * numberOperand;
-                                        break;
-                                    case "/":
-                                        record[iCol] = value / numberOperand;
-                                        break;
-                                    default:
-                                        console.warn(`Unsupported operator: ${operator}`);
-                                }
+                            if (record[iCol] && record[iCol] !== "") {
+                                const years = calculateYearsOfExperience(record[iCol]);
+                                variables['yearsOfExperience'] = years;
                             }
-                        });
-                    }
+
+                            const parser = new Parser();
+                            const expression = parser.parse(column.fx);
+                            const result = expression.evaluate(variables);
+
+                            record[iCol] = result;
+                        } catch (error) {
+                            console.error(`Ошибка при выполнении условия: ${column.fx}`, error);
+                        }
+                    });
                 } else {
-                    console.warn(`Invalid fx format: ${column.fx}`);
+                    const formulaParts = column.fx.match(/^\[([^\]]+)]\s*([*/+\-])\s*(\d+)$/);
+
+                    if (formulaParts) {
+                        const [_, columnName, operator, operand] = formulaParts;
+                        const columnIndex = customWhereColumns.findIndex(col => col.name === columnName);
+
+                        if (columnIndex !== -1) {
+                            arrayData.forEach((record) => {
+                                const value = Number(record[columnIndex]);
+                                const numberOperand = Number(operand);
+
+                                if (!isNaN(value) && !isNaN(numberOperand)) {
+                                    switch (operator) {
+                                        case "+":
+                                            record[iCol] = value + numberOperand;
+                                            break;
+                                        case "-":
+                                            record[iCol] = value - numberOperand;
+                                            break;
+                                        case "*":
+                                            record[iCol] = value * numberOperand;
+                                            break;
+                                        case "/":
+                                            record[iCol] = value / numberOperand;
+                                            break;
+                                        default:
+                                            console.warn(`Unsupported operator: ${operator}`);
+                                    }
+                                }
+                            });
+                        }
+                    } else {
+                        console.warn(`Invalid fx format: ${column.fx}`);
+                    }
                 }
             }
 
@@ -222,7 +253,8 @@ const ReportCreation = ({ idReport }) => {
                     const recordValue = record[iCol];
 
                     try {
-                        const condition = eval(`${recordValue} ${operator} ${value}`);
+                        const parser = new Parser();
+                        const condition = parser.parse(`${recordValue} ${operator} ${value}`).evaluate();
                         if (condition) {
                             newArrayWhereData.push(record);
                         }
@@ -283,43 +315,33 @@ const ReportCreation = ({ idReport }) => {
 
         updatedColumns.forEach((column, iCol) => {
             if (column.fx) {
-                let iDateStart = null;
+                if (column.fx.includes('yearsOfExperience')) {
+                    const dateColumnIndex = customWhereColumns.findIndex(col => col.type === "date");
 
-                updatedColumns.forEach((col, index) => {
-                    if (col.name === 'date_start') iDateStart = index;
-                });
+                    if (dateColumnIndex !== -1) {
+                        const updatedReport = [...dataReport];
 
-                if (iDateStart !== null) {
-                    console.log({ iDateStart });
+                        updatedReport.forEach((record) => {
+                            try {
+                                const dateStartValue = record[dateColumnIndex]; // Предположим, что это дата контракта
 
-                    const fxParse = column.fx.replace(/[\[\]]/gi, '');
+                                if (dateStartValue) {
+                                    const currentDate = new Date();
+                                    const startDate = new Date(dateStartValue);
+                                    const yearsOfExperience = currentDate.getFullYear() - startDate.getFullYear();
 
-                    const updatedReport = [...dataReport];
-
-                    updatedReport.forEach((record) => {
-                        try {
-                            const dateStartValue = record[iDateStart];
-
-                            if (dateStartValue) {
-                                const currentDate = new Date();
-                                const startDate = new Date(dateStartValue);
-                                const yearsOfExperience = currentDate.getFullYear() - startDate.getFullYear();
-
-                                if (yearsOfExperience > 0) {
-                                    const calculatedValue = yearsOfExperience;
-                                    record[iCol] = calculatedValue;
-                                } else {
-                                    record[iCol] = 0;
+                                    // Вычисляем стаж
+                                    record[iCol] = yearsOfExperience > 0 ? yearsOfExperience : 0;
                                 }
+                            } catch (error) {
+                                console.error(`Ошибка при вычислении стажа для записи:`, error);
                             }
-                        } catch (error) {
-                            console.error(`Ошибка при вычислении стажа для записи:`, error);
-                        }
-                    });
+                        });
 
-                    setDataReport(updatedReport);
-                } else {
-                    console.warn('Не удается найти столбец "date_start" (Дата начала работы).');
+                        setDataReport(updatedReport);
+                    } else {
+                        console.warn('Не удается найти столбец с датой.');
+                    }
                 }
             }
         });
@@ -353,18 +375,6 @@ const ReportCreation = ({ idReport }) => {
             });
     };
 
-    const safeEvaluate = (fx, zarplataValue, stavkaValue) => {
-        const fxWithValues = fx
-            .replace('zarplata', String(zarplataValue))
-            .replace('stavka', String(stavkaValue));
-
-        try {
-            return new Function('return ' + fxWithValues)();
-        } catch (error) {
-            console.error('Ошибка в формуле:', fxWithValues);
-            return 0;
-        }
-    };
 
     return (
         <div className={styles.container}>
@@ -501,9 +511,9 @@ const ReportCreation = ({ idReport }) => {
                         <input
                             type="text"
                             className={styles.inpt_js}
-                            value={column.where?.fx ?? ''}
+                            value={column.fx ?? ''}
                             onChange={(e) => handleColumnChange(index, "fx", e.target.value)}
-                            placeholder={column.fx || `[${column.name}]`}
+                            placeholder={`Пример: [zarplata] > 1000 ? 'Большая зарплата' : 'Маленькая зарплата'`}
                             onDoubleClick={() => navigator.clipboard.writeText(`[${column.name}]`)}
                         />
                     )}
