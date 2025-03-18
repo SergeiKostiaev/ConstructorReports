@@ -11,6 +11,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 const Reports = ({ onReportSelect }) => {
     const [reports, setReports] = useState([]);
+    const [lastModifiedReports, setLastModifiedReports] = useState([]);
     const [selectedReport, setSelectedReport] = useState(null);
     const [categories, setCategories] = useState([]);
     const [users, setUsers] = useState([]);
@@ -22,11 +23,14 @@ const Reports = ({ onReportSelect }) => {
     const [newReportLoaded, setNewReportLoaded] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [sortByCreatedAt, setSortByCreatedAt] = useState(null);
+    const [sortByUpdatedAt, setSortByUpdatedAt] = useState(null);
+    const [filteredReports, setFilteredReports] = useState([]); // Новое состояние для отфильтрованных отчетов
     const reportsPerPage = 6;
 
     useEffect(() => {
         const fetchReports = async () => {
-            setLoading(true); // Показываем индикатор загрузки
+            setLoading(true);
             try {
                 const response = await fetch(`${API_URL}/api/report/list`, {
                     method: 'GET',
@@ -38,23 +42,20 @@ const Reports = ({ onReportSelect }) => {
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    const formattedReports = data.data.map((report) => {
-                        // const category = categories.find(cat => cat.id === report.category_id);
-                        return {
-                            id: report.id,
-                            name: report.name,
-                            extension: report.extension,
-                            basket: report.basket,
-                            created_at: report.created_at,
-                            updated_at: report.updated_at,
-                            creator: report.user?.name || 'Неизвестно',
-                            category: report.category?.name ? report.category?.name  : 'Загруженные отчеты', // category ? category.name : 'Загруженные отчеты'
-                        };
-                    });
+                    const formattedReports = data.data.map((report) => ({
+                        id: report.id,
+                        name: report.name,
+                        extension: report.extension,
+                        basket: report.basket,
+                        created_at: report.created_at,
+                        updated_at: report.updated_at,
+                        creator: report.user?.name || 'Неизвестно',
+                        category: report.category?.name || 'Загруженные отчеты',
+                    }));
 
                     setReports(formattedReports);
+                    setFilteredReports(formattedReports); // Инициализируем отфильтрованные отчеты
 
-                    // Показываем уведомление только один раз
                     if (!newReportLoaded) {
                         setShowToast(true);
                         setNewReportLoaded(true);
@@ -67,10 +68,9 @@ const Reports = ({ onReportSelect }) => {
                 console.error("Ошибка при получении отчётов:", error);
                 toast.error("Ошибка при загрузке отчета.");
             } finally {
-                setLoading(false); // Скрываем индикатор загрузки
+                setLoading(false);
             }
         };
-
 
         const fetchCategories = async () => {
             try {
@@ -119,15 +119,43 @@ const Reports = ({ onReportSelect }) => {
         fetchReports();
     }, []);
 
+    useEffect(() => {
+        const sortedReports = [...reports].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 5);
+        setLastModifiedReports(sortedReports);
+    }, [reports]);
+
+    const handleSortByCreatedAt = () => {
+        const newSort = sortByCreatedAt === 'asc' ? 'desc' : 'asc';
+        setSortByCreatedAt(newSort);
+        setSortByUpdatedAt(null);
+        sortReports('created_at', newSort);
+    };
+
+    const handleSortByUpdatedAt = () => {
+        const newSort = sortByUpdatedAt === 'asc' ? 'desc' : 'asc';
+        setSortByUpdatedAt(newSort);
+        setSortByCreatedAt(null);
+        sortReports('updated_at', newSort);
+    };
+
+    const sortReports = (field, direction) => {
+        const sortedReports = [...filteredReports].sort((a, b) => {
+            const dateA = new Date(a[field]);
+            const dateB = new Date(b[field]);
+            return direction === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+        setCurrentPage(1); // Сбросить страницу на первую после сортировки
+        setFilteredReports(sortedReports); // Обновляем отфильтрованные отчеты
+    };
+
+
     const handleDeleteReport = async (id, inBasket) => {
         try {
-            // Проверяем, является ли пользователь админом
             const isAdmin = user.role_id === 2;
 
-            // Формируем тело запроса
             const dataForm = { report_id: id };
             if (!inBasket) {
-                dataForm.basket = 1; // Если не в корзине, просто отправляем в нее
+                dataForm.basket = 1;
             }
 
             const response = await fetch(`${API_URL}/api/report`, {
@@ -146,17 +174,13 @@ const Reports = ({ onReportSelect }) => {
                 return;
             }
 
-            // Если отчет НЕ в корзине → отправляем в корзину
             if (!inBasket) {
-                console.log(`Отчет с id ${id} перемещен в корзину.`);
                 setReports((prevReports) =>
                     prevReports.map((report) =>
                         report.id === id ? { ...report, basket: "1" } : report
                     )
                 );
-            }
-            else if (isAdmin) {
-                console.log(`Отчет с id ${id} удален из базы.`);
+            } else if (isAdmin) {
                 setReports((prevReports) => prevReports.filter((report) => report.id !== id));
             }
         } catch (error) {
@@ -164,11 +188,8 @@ const Reports = ({ onReportSelect }) => {
         }
     };
 
-
-
     const handleEditReport = (id) => {
         onReportSelect(id);
-        console.log(id);
     };
 
     const handleRevertBasket = async (id) => {
@@ -185,7 +206,6 @@ const Reports = ({ onReportSelect }) => {
             const data = await response.json();
 
             if (response.ok && data.success) {
-                console.log(`Отчет с id ${id} восстановлен.`);
                 setReports((prevReports) =>
                     prevReports.map((report) =>
                         report.id === id ? { ...report, basket: null } : report
@@ -227,7 +247,6 @@ const Reports = ({ onReportSelect }) => {
         }
     };
 
-
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
     };
@@ -250,23 +269,27 @@ const Reports = ({ onReportSelect }) => {
         setSelectedBasket(!selectedBasket);
     };
 
-    const filteredReports = reports.filter((report) => {
-        const matchesCategory =
-            selectedCategory === null || report.category === categories.find((category) => category.id === selectedCategory)?.name;
-        const matchesUser =
-            selectedUser === null || report.creator === users.find((user) => user.id === selectedUser)?.name;
-        const matchesSearch = [
-            report.name,
-            report.creator,
-            report.category || "",
-        ].some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()));
+    useEffect(() => {
+        const filtered = reports.filter((report) => {
+            const matchesCategory =
+                selectedCategory === null || report.category === categories.find((category) => category.id === selectedCategory)?.name;
+            const matchesUser =
+                selectedUser === null || report.creator === users.find((user) => user.id === selectedUser)?.name;
+            const matchesSearch = [
+                report.name,
+                report.creator,
+                report.category || "",
+            ].some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()));
 
-        if (selectedBasket) {
-            return report.basket && matchesCategory && matchesUser && matchesSearch;
-        } else {
-            return !report.basket && matchesCategory && matchesUser && matchesSearch;
-        }
-    });
+            if (selectedBasket) {
+                return report.basket && matchesCategory && matchesUser && matchesSearch;
+            } else {
+                return !report.basket && matchesCategory && matchesUser && matchesSearch;
+            }
+        });
+
+        setFilteredReports(filtered); // Обновляем отфильтрованные отчеты
+    }, [reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users]);
 
     const indexOfLastReport = currentPage * reportsPerPage;
     const indexOfFirstReport = indexOfLastReport - reportsPerPage;
@@ -306,7 +329,6 @@ const Reports = ({ onReportSelect }) => {
     const pages = renderPagination();
 
     const user = JSON.parse(localStorage.getItem("role") || "{}");
-    // console.log(user)
 
     return (
         <div className={styles.container}>
@@ -342,8 +364,18 @@ const Reports = ({ onReportSelect }) => {
                     <thead>
                     <tr>
                         <th>Наименование</th>
-                        <th>Дата создания</th>
-                        <th>Дата изменения</th>
+                        <th>
+                            Дата создания
+                            <span onClick={handleSortByCreatedAt} className={styles.sortIcon}>
+                                    {sortByCreatedAt === 'asc' ? '↑' : '↓'}
+                                </span>
+                        </th>
+                        <th>
+                            Дата изменения
+                            <span onClick={handleSortByUpdatedAt} className={styles.sortIcon}>
+                                    {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
+                                </span>
+                        </th>
                         <th>Кто создал</th>
                         <th>Категория</th>
                     </tr>
@@ -393,7 +425,6 @@ const Reports = ({ onReportSelect }) => {
                                     <img
                                         src={del}
                                         alt="Удалить"
-
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteReport(report.id, false);
@@ -401,7 +432,6 @@ const Reports = ({ onReportSelect }) => {
                                     />
                                 )}
 
-                                {/* Если отчет в корзине, удалить может только админ */}
                                 {report.basket && (user === 2 || user === 3) && (
                                     <img
                                         src={del}
@@ -412,7 +442,6 @@ const Reports = ({ onReportSelect }) => {
                                         }}
                                     />
                                 )}
-
                             </td>
                         </tr>
                     ))}
@@ -422,22 +451,50 @@ const Reports = ({ onReportSelect }) => {
             <div className={styles.pagination}>
                 <div className={styles["page-numbers"]}>
                     {pages.map((page, index) =>
-                            page === "..." ? (
-                                <span key={index} className={styles.dots}>...</span>
-                            ) : (
-                                <span
-                                    key={index}
-                                    className={`${styles["page-item"]} ${currentPage === page ? styles.active : ""}`}
-                                    onClick={() => handlePageChange(page)}
-                                >
-                                    {page}
-                                </span>
-                            )
+                        page === "..." ? (
+                            <span key={index} className={styles.dots}>...</span>
+                        ) : (
+                            <span
+                                key={index}
+                                className={`${styles["page-item"]} ${currentPage === page ? styles.active : ""}`}
+                                onClick={() => handlePageChange(page)}
+                            >
+                                {page}
+                            </span>
+                        )
                     )}
                 </div>
             </div>
 
             {showToast && <ToastContainer />}
+
+            <h3 className={styles.last_reports}>Последние измененные отчеты</h3>
+            <div className={styles.lastModifiedReports}>
+                <table className={styles.table}>
+                    <thead>
+                    <tr>
+                        <th>Дата создания</th>
+                        <th>Пользователь</th>
+                        <th>Статус</th>
+                        <th>Результат</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {lastModifiedReports.map((report) => (
+                        <tr
+                            key={report.id}
+                            onClick={() => handleExportReport(report.id, report.extension)} // Скачивание отчета при клике
+                            style={{ cursor: 'pointer' }} // Курсор в виде указателя
+                        >
+                            <td>{report.created_at}</td>
+                            <td>{report.creator}</td>
+                            <td>{report.basket ? "В корзине" : "Активен"}</td>
+                            <td>{report.name}</td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

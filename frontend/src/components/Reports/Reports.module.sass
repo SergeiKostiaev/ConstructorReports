@@ -32,7 +32,7 @@
       cursor: pointer
       font-size: 20px
 
-  .table__wrapper
+  .table__wrapper, .lastModifiedReports
     display: flex
     justify-content: space-between
     align-items: flex-start
@@ -47,6 +47,14 @@
 
       th
         background-color: #f0f0f0
+        .sortIcon
+          margin-left: 5px
+          cursor: pointer
+          font-size: 18px
+          color: #007bff
+
+          &:hover
+            color: #0056b3
       tbody tr
         cursor: pointer
         &:hover
@@ -158,3 +166,6 @@
       min-width: 30px
       text-align: center
       color: #888
+
+.last_reports
+  margin-top: 50px

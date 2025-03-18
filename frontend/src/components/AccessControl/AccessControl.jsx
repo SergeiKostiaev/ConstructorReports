@@ -5,6 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 import agree from "../../assets/agree.svg";
 import close from "../../assets/close.svg";
+import editIcon from "../../assets/edit.svg";
 
 const AccessControl = () => {
     const [users, setUsers] = useState([]);
@@ -17,6 +18,9 @@ const AccessControl = () => {
     const [adminName, setAdminName] = useState('');
     const [adminEmail, setAdminEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    const [editingUser, setEditingUser] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
 
     useEffect(() => {
         const role = Number(localStorage.getItem('role'));
@@ -74,15 +78,13 @@ const AccessControl = () => {
         }
 
         try {
-            const generatedCompanyId = `ID-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-
             const companyResponse = await fetch(`${API_URL}/api/company`, {
                 method: 'POST',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ name: generatedCompanyId })
+                body: JSON.stringify({ name: companyId }) // Используем уже сгенерированный ID
             });
 
             const companyData = await companyResponse.json();
@@ -94,7 +96,7 @@ const AccessControl = () => {
             }
 
             const adminPayload = {
-                company_id: generatedCompanyId, // Теперь передаем строку
+                company_id: companyId, // Используем уже сгенерированный ID
                 name: adminName,
                 email: adminEmail,
                 password: password
@@ -184,8 +186,6 @@ const AccessControl = () => {
         }
     };
 
-
-
     const handleDeleteCompany = async (companyId) => {
         if (!window.confirm("Вы уверены, что хотите удалить эту компанию?")) {
             return;
@@ -215,12 +215,56 @@ const AccessControl = () => {
         }
     };
 
+    const handleEditUser = (user) => {
+        setEditingUser(user);
+    };
+
+    const handleSaveUser = async () => {
+        if (!editingUser) return;
+
+        try {
+            const payload = {
+                user_id: editingUser.id,
+                name: editingUser.name,
+                email: editingUser.email,
+            };
+
+            // Если новый пароль введен, добавляем его в payload
+            if (newPassword) {
+                payload.password = newPassword;
+            }
+
+            const response = await fetch(`${API_URL}/api/user`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || "Ошибка при обновлении пользователя");
+            }
+
+            // Обновляем список пользователей
+            setUsers(users.map(user => user.id === editingUser.id ? { ...user, ...editingUser } : user));
+            setEditingUser(null); // Закрываем модальное окно
+            setNewPassword(''); // Очищаем поле пароля
+        } catch (error) {
+            console.error("Ошибка при обновлении пользователя:", error);
+        }
+    };
+
+    const handleCloseEditModal = () => {
+        setEditingUser(null);
+        setNewPassword(''); // Очищаем поле пароля
+    };
 
     return (
         <div className={styles.accessControl}>
-            {/*{isSuperAdmin && <h3>Админ панель: SuperAdmin</h3>}*/}
-            {/*{isAdmin && <h2>Админ панель</h2>}*/}
-
             {isSuperAdmin && (
                 <div className={styles.createCompanyForm}>
                     <p>Добавление новой компании</p>
@@ -291,6 +335,9 @@ const AccessControl = () => {
                                             <img src={agree} alt="Разрешить" width={18} height={18} />
                                         </button>
                                     )}
+                                    <button className={styles.editButton} onClick={() => handleEditUser(user)}>
+                                        <img src={editIcon} alt="Редактировать" />
+                                    </button>
                                     <button className={styles.denyButton} onClick={() => handleAccessChange(user.id, false)}>
                                         <img src={close} alt="Отклонить" />
                                     </button>
@@ -302,6 +349,36 @@ const AccessControl = () => {
                 )}
             </ul>
 
+            {editingUser && (
+                <div>
+                    <div className={styles.editModalContent}>
+                        <h3>Редактирование пользователя</h3>
+                        <div className={styles.editModalContent_inpt}>
+                            <input
+                                type="text"
+                                value={editingUser.name}
+                                onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                                placeholder="Имя пользователя"
+                            />
+                            <input
+                                type="email"
+                                value={editingUser.email}
+                                onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                                placeholder="Email пользователя"
+                            />
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Новый пароль (оставьте пустым, чтобы не менять)"
+                            />
+                            <button onClick={handleSaveUser}>Сохранить</button>
+                            <button onClick={handleCloseEditModal}>Закрыть</button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

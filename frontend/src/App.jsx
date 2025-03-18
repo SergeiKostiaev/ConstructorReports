@@ -4,11 +4,14 @@ import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import AuthForm from './components/AuthForm/AuthForm.jsx';
 import Home from "./components/Home/Home.jsx";
 import {ToastContainer} from "react-toastify";
+import {useEffect} from "react";
+import "./index.sass";
 
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
     return isAuthenticated ? children : <Navigate to="/login" />;
 };
+
 
 function App() {
     return (
