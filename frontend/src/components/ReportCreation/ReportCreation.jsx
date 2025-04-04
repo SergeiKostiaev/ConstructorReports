@@ -180,96 +180,116 @@ const ReportCreation = ({ idReport }) => {
         return diffYears;
     };
 
+
     const filterDataReport = () => {
         const arrayData = [...dataReport];
         const newArrayWhereData = [];
 
+        // Функция для преобразования даты в timestamp
+        const parseDateToTimestamp = (dateStr) => {
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            const [day, month, year] = dateStr.split('.');
+            return new Date(`${year}-${month}-${day}`).getTime();
+        };
+
+        // Функция для замены дат в строке выражения на timestamp
+        const replaceDatesInExpression = (expr) => {
+            return expr.replace(/(\d{2}\.\d{2}\.\d{4})/g, (match) => {
+                return parseDateToTimestamp(match);
+            });
+        };
+
+        // Функция для замены строк в кавычках
+        const replaceStringsInExpression = (expr) => {
+            return expr.replace(/'([^']+)'/g, '"$1"');
+        };
+
+        // Функция для нормализации чисел с запятыми
+        const normalizeNumbers = (expr) => {
+            return expr.replace(/(\d+),(\d+)/g, "$1.$2");
+        };
+
         customWhereColumns.forEach((column, iCol) => {
             if (column.fx) {
-                if (column.fx.includes('?')) {
-                    arrayData.forEach((record) => {
-                        try {
-                            const variables = {};
-                            customWhereColumns.forEach((col, index) => {
-                                variables[col.name] = record[index];
-                            });
+                arrayData.forEach((record) => {
+                    try {
+                        const variables = {};
 
-                            if (record[iCol] && record[iCol] !== "") {
-                                const years = calculateYearsOfExperience(record[iCol]);
-                                variables['yearsOfExperience'] = years;
+                        customWhereColumns.forEach((col, index) => {
+                            let value = record[index];
+
+                            if (typeof value === "string" && value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                                value = parseDateToTimestamp(value);
                             }
 
-                            const parser = new Parser();
-                            const expression = parser.parse(column.fx);
-                            const result = expression.evaluate(variables);
+                            variables[col.name] = value;
+                        });
 
-                            record[iCol] = result;
-                        } catch (error) {
-                            console.error(`Ошибка при выполнении условия: ${column.fx}`, error);
+                        if (record[iCol] && record[iCol] !== "") {
+                            variables['yearsOfExperience'] = calculateYearsOfExperience(record[iCol]);
                         }
-                    });
-                } else {
-                    const formulaParts = column.fx.match(/^\[([^\]]+)]\s*([*/+\-])\s*(\d+)$/);
 
-                    if (formulaParts) {
-                        const [_, columnName, operator, operand] = formulaParts;
-                        const columnIndex = customWhereColumns.findIndex(col => col.name === columnName);
+                        let preparedExpression = column.fx;
+                        preparedExpression = replaceDatesInExpression(preparedExpression);
+                        preparedExpression = replaceStringsInExpression(preparedExpression);
+                        preparedExpression = normalizeNumbers(preparedExpression);
 
-                        if (columnIndex !== -1) {
-                            arrayData.forEach((record) => {
-                                const value = Number(record[columnIndex]);
-                                const numberOperand = Number(operand);
+                        preparedExpression = preparedExpression.replace(/\[([^\]]+)]/g, (match, varName) => {
+                            return `(${variables[varName] || 0})`;
+                        });
 
-                                if (!isNaN(value) && !isNaN(numberOperand)) {
-                                    switch (operator) {
-                                        case "+":
-                                            record[iCol] = value + numberOperand;
-                                            break;
-                                        case "-":
-                                            record[iCol] = value - numberOperand;
-                                            break;
-                                        case "*":
-                                            record[iCol] = value * numberOperand;
-                                            break;
-                                        case "/":
-                                            record[iCol] = value / numberOperand;
-                                            break;
-                                        default:
-                                            console.warn(`Unsupported operator: ${operator}`);
-                                    }
-                                }
-                            });
-                        }
-                    } else {
-                        console.warn(`Invalid fx format: ${column.fx}`);
+                        const parser = new Parser();
+                        const expression = parser.parse(preparedExpression);
+                        const result = expression.evaluate(variables);
+
+                        record[iCol] = typeof result === 'boolean' ? (result ? "New" : "Старый") : result;
+                    } catch (error) {
+                        console.error(`Ошибка в выражении: ${column.fx}`, error);
+                        record[iCol] = `Ошибка: ${error.message}`;
                     }
-                }
+                });
             }
 
             if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
                 const { operator = dataWhereColumns[0], value } = column.where;
 
                 arrayData.forEach((record) => {
-                    const recordValue = record[iCol];
-
                     try {
+                        let recordValue = record[iCol];
+                        let compareValue = value;
+
+                        if (typeof recordValue === 'string' && recordValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                            recordValue = parseDateToTimestamp(recordValue);
+                        }
+                        if (typeof compareValue === 'string' && compareValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                            compareValue = parseDateToTimestamp(compareValue);
+                        }
+
+                        let conditionExpr = `${recordValue} ${operator} ${compareValue}`;
+                        conditionExpr = replaceDatesInExpression(conditionExpr);
+                        conditionExpr = replaceStringsInExpression(conditionExpr);
+                        conditionExpr = normalizeNumbers(conditionExpr);
+
                         const parser = new Parser();
-                        const condition = parser.parse(`${recordValue} ${operator} ${value}`).evaluate();
+                        const condition = parser.parse(conditionExpr).evaluate();
+
                         if (condition) {
                             newArrayWhereData.push(record);
                         }
                     } catch (error) {
-                        console.error(`Error evaluating condition: ${recordValue} ${operator} ${value}`, error);
+                        console.error(`Ошибка в условии: ${record[iCol]} ${operator} ${value}`, error);
                     }
                 });
             }
         });
 
         const allReportData = newArrayWhereData.length > 0 ? newArrayWhereData : arrayData;
-
         setNewDataReport(allReportData);
         return allReportData;
     };
+
+
+
 
     const handlePreview = () => {
         const bearerToken = localStorage.getItem('api_token');

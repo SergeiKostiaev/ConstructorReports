@@ -8,7 +8,8 @@ import DataContainer from "../DataContainer/DataContainer.jsx";
 import Reports from "../Reports/Reports.jsx";
 import ReportCreation from "../ReportCreation/ReportCreation.jsx";
 import Analytics from "../Analytics/Analytics.jsx";
-import {FaUmbrellaBeach, FaUserAstronaut, FaUserCircle} from "react-icons/fa";
+import { FaUserCircle } from "react-icons/fa";
+import * as XLSX from 'xlsx';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -82,7 +83,7 @@ const Home = () => {
         setActive(index >= 0 && index < items.length ? index : 0);
     };
 
-    const handleUploadFile = (e) => {
+    const handleUploadFile = async (e) => {
         e.preventDefault();
         const bearerToken = localStorage.getItem("api_token");
 
@@ -96,26 +97,48 @@ const Home = () => {
             return;
         }
 
-        const data = new FormData();
-        data.append("file", e.target.files[0]);
+        const file = e.target.files[0];
+        const reader = new FileReader();
 
-        fetch(`${API_URL}/api/report/import`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${bearerToken}` },
-            body: data,
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                if (data.success) {
+        reader.onload = async (event) => {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
+
+            // Исправление дат
+            jsonData.forEach(row => {
+                Object.keys(row).forEach(key => {
+                    if (!isNaN(row[key]) && row[key] > 30000) { // Простая проверка на дату
+                        row[key] = XLSX.SSF.format("dd.mm.yyyy", row[key]); // Преобразование в дату
+                    }
+                });
+            });
+
+            // Отправляем данные на сервер
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch(`${API_URL}/api/report/import`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${bearerToken}` },
+                    body: formData,
+                });
+                const result = await response.json();
+                if (result.success) {
                     toast.success("Отчет успешно импортирован", { position: "top-right" });
                     fetchReports();
                 } else {
-                    toast.error(`Ошибка: ${JSON.stringify(data)}`, { position: "top-right" });
+                    toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
                 }
-            })
-            .catch(() => {
+            } catch (error) {
                 toast.error("Ошибка загрузки файла", { position: "top-right" });
-            });
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
     };
 
     return (

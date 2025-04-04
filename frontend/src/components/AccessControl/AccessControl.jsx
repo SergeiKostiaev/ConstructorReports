@@ -317,37 +317,43 @@ const AccessControl = () => {
             {isSuperAdmin && <h3>Список администраторов</h3>}
             {isAdmin && <h3>Список пользователей</h3>}
 
-            <ul className={styles.userList}>
+            <div className={styles.usersTable}>
+                <div className={styles.tableHeader}>
+                    <div className={styles.headerCell}>ФИО</div>
+                    <div className={styles.headerCell}>Email</div>
+                    <div className={styles.headerCell}>Действия</div>
+                </div>
+
                 {users.filter(user => (isSuperAdmin && (user.role_id === 2)) || (isAdmin && user.role_id === 1)).length > 0 ? (
                     users
                         .filter(user => (isSuperAdmin && (user.role_id === 2)) || (isAdmin && user.role_id === 1))
                         .map(user => (
-                            <li key={user.id} className={styles.userItem}>
-                                <div className={styles.userName}>
-                                    <p>{user.name}</p>
-                                </div>
-                                <div className={styles.userEmail}>
-                                    <p>{user.email}</p>
-                                </div>
-                                <div className={styles.actionButtons}>
-                                    {user.confirmed === null && (
-                                        <button className={styles.allowButton} onClick={() => handleAccessChange(user.id, true)}>
-                                            <img src={agree} alt="Разрешить" width={18} height={18} />
+                            <div key={user.id} className={styles.tableRow}>
+                                <div className={styles.tableCell}>{user.name}</div>
+                                <div className={styles.tableCell}>{user.email}</div>
+                                <div className={styles.tableCell}>
+                                    <div className={styles.actionButtons}>
+                                        {user.confirmed === null && (
+                                            <button className={styles.allowButton} onClick={() => handleAccessChange(user.id, true)}>
+                                                <img src={agree} alt="Разрешить" width={18} height={18} />
+                                            </button>
+                                        )}
+                                        <button className={styles.editButton} onClick={() => handleEditUser(user)}>
+                                            <img src={editIcon} alt="Редактировать" />
                                         </button>
-                                    )}
-                                    <button className={styles.editButton} onClick={() => handleEditUser(user)}>
-                                        <img src={editIcon} alt="Редактировать" />
-                                    </button>
-                                    <button className={styles.denyButton} onClick={() => handleAccessChange(user.id, false)}>
-                                        <img src={close} alt="Отклонить" />
-                                    </button>
+                                        <button className={styles.denyButton} onClick={() => handleAccessChange(user.id, false)}>
+                                            <img src={close} alt="Отклонить" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </li>
+                            </div>
                         ))
                 ) : (
-                    <p>{isSuperAdmin ? "Администраторов нет" : "Пользователей нет"}</p>
+                    <div className={styles.noUsersMessage}>
+                        {isSuperAdmin ? "Администраторов нет" : "Пользователей нет"}
+                    </div>
                 )}
-            </ul>
+            </div>
 
             {editingUser && (
                 <div>

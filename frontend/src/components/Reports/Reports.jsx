@@ -8,6 +8,8 @@ import ref50 from '../../assets/ref50.svg';
 
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import ReportPreview from "../ReportPreview/ReportPreview.jsx";
+
 
 const Reports = ({ onReportSelect }) => {
     const [reports, setReports] = useState([]);
@@ -27,6 +29,15 @@ const Reports = ({ onReportSelect }) => {
     const [sortByUpdatedAt, setSortByUpdatedAt] = useState(null);
     const [filteredReports, setFilteredReports] = useState([]); // Новое состояние для отфильтрованных отчетов
     const reportsPerPage = 6;
+    const [previewReport, setPreviewReport] = useState(null);
+
+    const handleRowClick = (report, e) => {
+        // Если клик был по кнопке - не открываем превью
+        if (e.target.tagName === 'IMG' || e.target.tagName === 'BUTTON') {
+            return;
+        }
+        setPreviewReport(report);
+    };
 
     useEffect(() => {
         const fetchReports = async () => {
@@ -124,35 +135,59 @@ const Reports = ({ onReportSelect }) => {
         setLastModifiedReports(sortedReports);
     }, [reports]);
 
+    const parseCustomDate = (dateString) => {
+        if (!dateString) return new Date(0); // возвращаем минимальную дату, если строка пустая
+
+        // Разбиваем строку на части: "01.04.2025 в 09:32" -> ["01.04.2025", "09:32"]
+        const [datePart, timePart] = dateString.split(' в ');
+        const [day, month, year] = datePart.split('.');
+        const [hours, minutes] = timePart.split(':');
+
+        // Создаем объект Date (месяцы в JS начинаются с 0, поэтому month - 1)
+        return new Date(year, month - 1, day, hours, minutes);
+    };
+
     const handleSortByCreatedAt = () => {
         const newSort = sortByCreatedAt === 'asc' ? 'desc' : 'asc';
         setSortByCreatedAt(newSort);
         setSortByUpdatedAt(null);
-        sortReports('created_at', newSort);
+
+        const sorted = [...filteredReports].sort((a, b) => {
+            const dateA = parseCustomDate(a.created_at);
+            const dateB = parseCustomDate(b.created_at);
+            return newSort === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+
+        setFilteredReports(sorted);
     };
 
     const handleSortByUpdatedAt = () => {
         const newSort = sortByUpdatedAt === 'asc' ? 'desc' : 'asc';
         setSortByUpdatedAt(newSort);
         setSortByCreatedAt(null);
-        sortReports('updated_at', newSort);
+
+        const sorted = [...filteredReports].sort((a, b) => {
+            const dateA = parseCustomDate(a.updated_at);
+            const dateB = parseCustomDate(b.updated_at);
+            return newSort === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+
+        setFilteredReports(sorted);
     };
 
-    const sortReports = (field, direction) => {
-        const sortedReports = [...filteredReports].sort((a, b) => {
-            const dateA = new Date(a[field]);
-            const dateB = new Date(b[field]);
-            return direction === 'asc' ? dateA - dateB : dateB - dateA;
-        });
-        setCurrentPage(1); // Сбросить страницу на первую после сортировки
-        setFilteredReports(sortedReports); // Обновляем отфильтрованные отчеты
-    };
+    // const sortReports = (field, direction) => {
+    //     const sortedReports = [...filteredReports].sort((a, b) => {
+    //         const dateA = new Date(a[field]);
+    //         const dateB = new Date(b[field]);
+    //         return direction === 'asc' ? dateA - dateB : dateB - dateA;
+    //     });
+    //     setCurrentPage(1); // Сбросить страницу на первую после сортировки
+    //     setFilteredReports(sortedReports); // Обновляем отфильтрованные отчеты
+    // };
 
 
     const handleDeleteReport = async (id, inBasket) => {
         try {
-            const isAdmin = user.role_id === 2;
-
             const dataForm = { report_id: id };
             if (!inBasket) {
                 dataForm.basket = 1;
@@ -171,20 +206,25 @@ const Reports = ({ onReportSelect }) => {
 
             if (!response.ok) {
                 console.error(data.message || 'Ошибка при удалении отчета');
+                toast.error(data.message || 'Ошибка при удалении отчета');
                 return;
             }
 
             if (!inBasket) {
-                setReports((prevReports) =>
-                    prevReports.map((report) =>
+                setReports(prevReports =>
+                    prevReports.map(report =>
                         report.id === id ? { ...report, basket: "1" } : report
                     )
                 );
-            } else if (isAdmin) {
-                setReports((prevReports) => prevReports.filter((report) => report.id !== id));
+                toast.success('Отчет перемещен в корзину');
+            } else {
+                // Если запрос прошел успешно - значит права были
+                setReports(prevReports => prevReports.filter(report => report.id !== id));
+                toast.success('Отчет окончательно удален из корзины');
             }
         } catch (error) {
             console.error('Ошибка при удалении отчета:', error);
+            toast.error('Произошла ошибка при удалении отчета');
         }
     };
 
@@ -211,11 +251,14 @@ const Reports = ({ onReportSelect }) => {
                         report.id === id ? { ...report, basket: null } : report
                     )
                 );
+                toast.success('Отчет восстановлен из корзины');
             } else {
                 console.error(data.message || 'Не удалось восстановить отчет');
+                toast.error(data.message || 'Не удалось восстановить отчет');
             }
         } catch (error) {
             console.error('Ошибка при восстановлении отчета:', error);
+            toast.error('Произошла ошибка при восстановлении отчета');
         }
     };
 
@@ -364,17 +407,17 @@ const Reports = ({ onReportSelect }) => {
                     <thead>
                     <tr>
                         <th>Наименование</th>
-                        <th>
+                        <th onClick={handleSortByCreatedAt} style={{cursor: 'pointer'}}>
                             Дата создания
-                            <span onClick={handleSortByCreatedAt} className={styles.sortIcon}>
-                                    {sortByCreatedAt === 'asc' ? '↑' : '↓'}
-                                </span>
+                            <span className={styles.sortIcon}>
+                                {sortByCreatedAt === 'asc' ? '↑' : '↓'}
+                            </span>
                         </th>
-                        <th>
+                        <th onClick={handleSortByUpdatedAt} style={{cursor: 'pointer'}}>
                             Дата изменения
-                            <span onClick={handleSortByUpdatedAt} className={styles.sortIcon}>
-                                    {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
-                                </span>
+                            <span className={styles.sortIcon}>
+                                {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
+                            </span>
                         </th>
                         <th>Кто создал</th>
                         <th>Категория</th>
@@ -385,7 +428,8 @@ const Reports = ({ onReportSelect }) => {
                         <tr
                             key={report.id}
                             className={selectedReport?.id === report.id ? styles.selected : ''}
-                            onClick={() => setSelectedReport(report)}
+                            onClick={(e) => handleRowClick(report, e)}
+                            style={{ cursor: 'pointer' }}
                         >
                             <td>{report.name}</td>
                             <td>{report.created_at}</td>
@@ -446,6 +490,12 @@ const Reports = ({ onReportSelect }) => {
                         </tr>
                     ))}
                     </tbody>
+                    {previewReport && (
+                        <ReportPreview
+                            report={previewReport}
+                            onClose={() => setPreviewReport(null)}
+                        />
+                    )}
                 </table>
             </div>
             <div className={styles.pagination}>
@@ -466,7 +516,15 @@ const Reports = ({ onReportSelect }) => {
                 </div>
             </div>
 
-            {showToast && <ToastContainer />}
+            {showToast && <ToastContainer position="top-right"
+                                          autoClose={5000}
+                                          hideProgressBar={false}
+                                          newestOnTop={false}
+                                          closeOnClick
+                                          rtl={false}
+                                          pauseOnFocusLoss
+                                          draggable
+                                          pauseOnHover/>}
 
             <h3 className={styles.last_reports}>Последние измененные отчеты</h3>
             <div className={styles.lastModifiedReports}>
@@ -483,8 +541,8 @@ const Reports = ({ onReportSelect }) => {
                     {lastModifiedReports.map((report) => (
                         <tr
                             key={report.id}
-                            onClick={() => handleExportReport(report.id, report.extension)} // Скачивание отчета при клике
-                            style={{ cursor: 'pointer' }} // Курсор в виде указателя
+                            onClick={() => handleExportReport(report.id, report.extension)}
+                            style={{ cursor: 'pointer' }}
                         >
                             <td>{report.created_at}</td>
                             <td>{report.creator}</td>
