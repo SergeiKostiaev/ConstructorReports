@@ -10,12 +10,41 @@ import ReportCreation from "../ReportCreation/ReportCreation.jsx";
 import Analytics from "../Analytics/Analytics.jsx";
 import { FaUserCircle } from "react-icons/fa";
 import * as XLSX from 'xlsx';
+import ProcessControl from "../ProcessControl/ProcessControl.jsx";
+import {useSelector} from "react-redux";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const Home = () => {
     const { logout } = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [reports, setReports] = useState([]);
+    const activeReports = useSelector(state => state.reports.activeProcesses);
+
+
+    const fetchReports = async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/report/list`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (!response.ok) throw new Error('Ошибка при получении отчетов');
+
+            const data = await response.json();
+            console.log('Fetched reports:', data);
+            setReports(Array.isArray(data) ? data : []);
+        } catch (error) {
+            toast.error("Ошибка загрузки отчетов", { position: "top-right" });
+        }
+    };
+
+    useEffect(() => {
+        fetchReports();
+    }, []);
 
     // Загружаем сохранённую вкладку из localStorage при инициализации
     const [active, setActive] = useState(() => {
@@ -44,16 +73,19 @@ const Home = () => {
     // Сохраняем активную вкладку в localStorage при её изменении
     useEffect(() => {
         localStorage.setItem('activeTab', active.toString());
-    }, [active]);
+        if (selectedReportId !== null) {
+            localStorage.setItem('selectedReportId', selectedReportId.toString());
+        } else {
+            localStorage.removeItem('selectedReportId');
+        }
+    }, [active, selectedReportId]);
 
     const onReportSelect = (id) => {
         setSelectedReportId(id);
         setActive(1);
     };
 
-    const fetchReports = () => {
-        console.log('Загрузка отчетов...');
-    };
+
 
     const items = isConfirmed ? [
         {
@@ -73,6 +105,14 @@ const Home = () => {
                     ) : (
                         <p>Выберите отчет из системы</p>
                     )}
+                </DataContainer>
+            ),
+        },
+        {
+            title: 'Контроль процессов',
+            content: (
+                <DataContainer title="Контроль процессов">
+                    <ProcessControl activeProcesses={activeReports} />
                 </DataContainer>
             ),
         },
@@ -122,7 +162,7 @@ const Home = () => {
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-                raw: true, // оставим "сырой" формат, чтобы вручную обработать даты
+                raw: true,
                 dateNF: "dd.mm.yyyy"
             });
 
@@ -148,7 +188,7 @@ const Home = () => {
                 const result = await response.json();
                 if (result.success) {
                     toast.success("Отчет успешно импортирован", { position: "top-right" });
-                    fetchReports();
+                    fetchReports(); // обновляем список отчетов
                 } else {
                     toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
                 }

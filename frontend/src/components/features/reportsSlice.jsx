@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+// Получение списка отчетов
 export const fetchReports = createAsyncThunk(
     'reports/fetchReports',
     async (_, { rejectWithValue }) => {
@@ -36,6 +37,7 @@ export const fetchReports = createAsyncThunk(
     }
 );
 
+// Получение списка категорий
 export const fetchCategories = createAsyncThunk(
     'reports/fetchCategories',
     async (_, { rejectWithValue }) => {
@@ -60,6 +62,7 @@ export const fetchCategories = createAsyncThunk(
     }
 );
 
+// Получение списка пользователей
 export const fetchUsers = createAsyncThunk(
     'reports/fetchUsers',
     async (_, { rejectWithValue }) => {
@@ -84,6 +87,7 @@ export const fetchUsers = createAsyncThunk(
     }
 );
 
+// Удаление отчета
 export const deleteReport = createAsyncThunk(
     'reports/deleteReport',
     async ({ id, inBasket }, { rejectWithValue }) => {
@@ -115,6 +119,7 @@ export const deleteReport = createAsyncThunk(
     }
 );
 
+// Восстановление отчета из корзины
 export const revertReport = createAsyncThunk(
     'reports/revertReport',
     async (id, { rejectWithValue }) => {
@@ -141,6 +146,7 @@ export const revertReport = createAsyncThunk(
     }
 );
 
+// Экспорт отчета
 export const exportReport = createAsyncThunk(
     'reports/exportReport',
     async ({ reportId, extension }, { rejectWithValue }) => {
@@ -173,6 +179,7 @@ export const exportReport = createAsyncThunk(
     }
 );
 
+// Слайс Redux
 const reportsSlice = createSlice({
     name: 'reports',
     initialState: {
@@ -193,6 +200,8 @@ const reportsSlice = createSlice({
         previewReport: null,
         newReportLoaded: false,
         reportsPerPage: 6,
+        activeProcesses: JSON.parse(localStorage.getItem('activeProcesses')) || [],
+        reportStatuses: JSON.parse(localStorage.getItem('reportStatuses')) || {},
     },
     reducers: {
         setSelectedUser: (state, action) => {
@@ -247,11 +256,9 @@ const reportsSlice = createSlice({
         sortReports: (state) => {
             const parseCustomDate = (dateString) => {
                 if (!dateString) return new Date(0);
-
                 const [datePart, timePart] = dateString.split(' в ');
                 const [day, month, year] = datePart.split('.');
                 const [hours, minutes] = timePart.split(':');
-
                 return new Date(year, month - 1, day, hours, minutes);
             };
 
@@ -268,6 +275,39 @@ const reportsSlice = createSlice({
                     return state.sortByUpdatedAt === 'asc' ? dateA - dateB : dateB - dateA;
                 });
             }
+        },
+        addActiveProcess: (state, action) => {
+            const existingIndex = state.activeProcesses.findIndex(p => p.id === action.payload.id);
+            if (existingIndex === -1) {
+                state.activeProcesses.push({
+                    ...action.payload,
+                    progress: 25,
+                    startedAt: new Date().toLocaleString(),
+                });
+                state.reportStatuses[action.payload.id] = 'В работе';
+                updateLocalStorage(state);
+            }
+        },
+        updateProcessProgress: (state, action) => {
+            const { id, progress } = action.payload;
+            const process = state.activeProcesses.find(p => p.id === id);
+            if (process) {
+                process.progress = progress;
+                if (progress >= 100) {
+                    state.reportStatuses[id] = 'Завершен';
+                }
+                updateLocalStorage(state);
+            }
+        },
+        removeActiveProcess: (state, action) => {
+            state.activeProcesses = state.activeProcesses.filter(p => p.id !== action.payload);
+            state.reportStatuses[action.payload] = 'Отменен';
+            updateLocalStorage(state);
+        },
+        setReportStatus: (state, action) => {
+            const { id, status } = action.payload;
+            state.reportStatuses[id] = status;
+            updateLocalStorage(state);
         },
     },
     extraReducers: (builder) => {
@@ -339,6 +379,11 @@ const reportsSlice = createSlice({
     },
 });
 
+const updateLocalStorage = (state) => {
+    localStorage.setItem('activeProcesses', JSON.stringify(state.activeProcesses));
+    localStorage.setItem('reportStatuses', JSON.stringify(state.reportStatuses));
+};
+
 export const {
     setSelectedUser,
     setSelectedCategory,
@@ -350,6 +395,10 @@ export const {
     setPreviewReport,
     filterReports,
     sortReports,
+    addActiveProcess,
+    updateProcessProgress,
+    removeActiveProcess,
+    setReportStatus,
 } = reportsSlice.actions;
 
 export default reportsSlice.reducer;

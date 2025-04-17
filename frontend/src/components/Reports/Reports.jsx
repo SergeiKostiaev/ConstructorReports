@@ -18,6 +18,7 @@ import {
     setPreviewReport,
     filterReports,
     sortReports,
+    addActiveProcess,
 } from "../features/reportsSlice.jsx";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -44,7 +45,10 @@ const Reports = ({ onReportSelect }) => {
         sortByCreatedAt,
         sortByUpdatedAt,
         reportsPerPage,
+        activeProcesses,
     } = useSelector((state) => state.reports);
+
+    console.log('Active Reports:', activeProcesses);
 
     useEffect(() => {
         dispatch(fetchCategories());
@@ -231,6 +235,9 @@ const Reports = ({ onReportSelect }) => {
                                     alt="Редактировать"
                                     onClick={(e) => {
                                         e.stopPropagation();
+                                        if (!activeProcesses.find(p => p.id === report.id)) {
+                                            dispatch(addActiveProcess(report)); // Добавляем только если отчёт ещё не в активных
+                                        }
                                         onReportSelect(report.id);
                                     }}
                                 />
@@ -297,34 +304,6 @@ const Reports = ({ onReportSelect }) => {
                             pauseOnFocusLoss
                             draggable
                             pauseOnHover/>
-
-            <h3 className={styles.last_reports}>Последние измененные отчеты</h3>
-            <div className={styles.lastModifiedReports}>
-                <table className={styles.table}>
-                    <thead>
-                    <tr>
-                        <th>Дата создания</th>
-                        <th>Пользователь</th>
-                        <th>Статус</th>
-                        <th>Результат</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {lastModifiedReports.map((report) => (
-                        <tr
-                            key={report.id}
-                            onClick={() => handleExportReport(report.id, report.extension)}
-                            style={{ cursor: 'pointer' }}
-                        >
-                            <td>{report.created_at}</td>
-                            <td>{report.creator}</td>
-                            <td>{report.basket ? "В корзине" : "Активен"}</td>
-                            <td>{report.name}</td>
-                        </tr>
-                    ))}
-                    </tbody>
-                </table>
-            </div>
         </div>
     );
 };

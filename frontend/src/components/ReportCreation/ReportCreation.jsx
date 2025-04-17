@@ -3,6 +3,7 @@ import styles from "./ReportCreation.module.sass";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Parser } from 'expr-eval';
+import { addActiveProcess, setReportStatus } from '../features/reportsSlice.jsx';
 
 import screp from '../../assets/screp.svg';
 
