@@ -3,6 +3,7 @@
 .reportSelection
   display: flex
   flex-direction: column
+
   select
     margin-top: 15px
     font-family: 'Montserrat', sans-serif
@@ -20,6 +21,7 @@
     box-sizing: border-box
     cursor: pointer
     margin-right: 15px
+
     &::after
       content: '▼'
       position: absolute
@@ -28,30 +30,17 @@
       transform: translateY(-50%)
       font-size: 12px
       color: idx.$border
+
     &:hover, &:focus
       border-color: idx.$border
+
     option
       font-family: 'Montserrat', sans-serif
       font-size: 16px
 
-.columnSelection
+.columnSelection, .yAxisSelection, .chartTypeSelection
   width: 100%
-.columnButton
-  max-width: 250px
-  width: 100%
-  margin-bottom: 20px
-  &:not(:last-child)
-    margin-right: 15px
-    margin-bottom: 15px
-  .choose__name
-    max-width: 740px
-    display: flex
-    flex-wrap: wrap
-    justify-content: space-between
 
-
-.yAxisSelection, .chartTypeSelection
-  width: 100%
   select
     margin-top: 15px
     font-family: 'Montserrat', sans-serif
@@ -69,6 +58,7 @@
     box-sizing: border-box
     cursor: pointer
     margin-left: 15px
+
     &::after
       content: '▼'
       position: absolute
@@ -77,15 +67,34 @@
       transform: translateY(-50%)
       font-size: 12px
       color: idx.$border
+
     &:hover, &:focus
       border-color: idx.$border
+
     option
       font-family: 'Montserrat', sans-serif
       font-size: 16px
 
+.columnButton
+  max-width: 250px
+  width: 100%
+  margin-bottom: 20px
+
+  &:not(:last-child)
+    margin-right: 15px
+    margin-bottom: 15px
+
+  .choose__name
+    max-width: 740px
+    display: flex
+    flex-wrap: wrap
+    justify-content: space-between
+
 .downloadButtons
   display: flex
   margin-top: 40px
+  gap: 15px
+
   button
     max-width: 250px
     width: 100%
@@ -97,10 +106,10 @@
     cursor: pointer
     color: idx.$main-bg
     font-weight: 600
+
     &:hover
       background-color: idx.$main-btn
       color: idx.$main-fonts
-
 
 .chartContainer
   display: grid
@@ -115,11 +124,6 @@
   border-radius: 8px
   padding: 10px
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1)
-
-.downloadButtons
-  margin-top: 20px
-  display: flex
-  gap: 10px
 
 .columnButton
   margin: 5px
@@ -137,3 +141,96 @@
 .error
   color: red
   margin-top: 10px
+
+/* Кастомные радио инпуты */
+.radioGroup
+  display: flex
+  flex-direction: column
+  gap: 15px
+  margin-bottom: 20px
+
+.radioContainer
+  display: flex
+  align-items: center
+  cursor: pointer
+  user-select: none
+
+.radioInput
+  display: none
+
+.radioLabel
+  position: relative
+  padding-left: 30px
+  font-size: 16px
+  cursor: pointer
+  transition: color 0.3s
+
+  &::before
+    content: ''
+    position: absolute
+    left: 0
+    top: 50%
+    transform: translateY(-50%)
+    width: 20px
+    height: 20px
+    border-radius: 50%
+    border: 2px solid #ccc
+    background-color: #fff
+    transition: background-color 0.3s, border-color 0.3s
+
+  &::after
+    content: ''
+    position: absolute
+    left: 6px
+    top: 6px
+    width: 8px
+    height: 8px
+    border-radius: 50%
+    background-color: transparent
+    transition: background-color 0.3s
+
+  .radioInput:checked + &::before
+    background-color: idx.$main-btn
+    border-color:  idx.$main-btn
+
+  .radioInput:checked + &::after
+    background-color: #fff
+
+  &:hover::before
+    border-color:  idx.$main-btn
+
+  &:hover
+    color:  idx.$main-btn
+.fullscreenModal
+  position: fixed
+  top: 0
+  left: 0
+  width: 100%
+  height: 100%
+  background-color: rgba(0, 0, 0, 0.8)
+  display: flex
+  justify-content: center
+  align-items: center
+  z-index: 1000
+
+.fullscreenContent
+  background: white
+  padding: 20px
+  border-radius: 8px
+  max-width: 90%
+  max-height: 90%
+  position: relative
+
+.closeButton
+  position: absolute
+  top: 10px
+  right: 10px
+  background: none
+  border: none
+  font-size: 24px
+  cursor: pointer
+  color: #333
+  z-index: 1001
+
+  &:hover
+    color: #000

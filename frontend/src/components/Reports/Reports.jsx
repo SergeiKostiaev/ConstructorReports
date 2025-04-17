@@ -1,338 +1,112 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import styles from "./Reports.module.sass";
-const API_URL = import.meta.env.VITE_API_URL;
+import {
+    fetchReports,
+    fetchCategories,
+    fetchUsers,
+    deleteReport,
+    revertReport,
+    exportReport,
+    setSelectedUser,
+    setSelectedCategory,
+    toggleSelectedBasket,
+    setSearchQuery,
+    setCurrentPage,
+    setSortByCreatedAt,
+    setSortByUpdatedAt,
+    setPreviewReport,
+    filterReports,
+    sortReports,
+} from "../features/reportsSlice.jsx";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 import edit from '../../assets/edit2.svg';
 import del from '../../assets/del.svg';
 import download from '../../assets/download2.svg';
 import ref50 from '../../assets/ref50.svg';
 
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import ReportPreview from "../ReportPreview/ReportPreview.jsx";
-
-
 const Reports = ({ onReportSelect }) => {
-    const [reports, setReports] = useState([]);
-    const [lastModifiedReports, setLastModifiedReports] = useState([]);
-    const [selectedReport, setSelectedReport] = useState(null);
-    const [categories, setCategories] = useState([]);
-    const [users, setUsers] = useState([]);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState(null);
-    const [selectedBasket, setSelectedBasket] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [newReportLoaded, setNewReportLoaded] = useState(false);
-    const [showToast, setShowToast] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [sortByCreatedAt, setSortByCreatedAt] = useState(null);
-    const [sortByUpdatedAt, setSortByUpdatedAt] = useState(null);
-    const [filteredReports, setFilteredReports] = useState([]); // Новое состояние для отфильтрованных отчетов
-    const reportsPerPage = 6;
-    const [previewReport, setPreviewReport] = useState(null);
+    const dispatch = useDispatch();
+    const {
+        reports,
+        filteredReports,
+        lastModifiedReports,
+        categories,
+        users,
+        selectedUser,
+        selectedCategory,
+        selectedBasket,
+        searchQuery,
+        loading,
+        currentPage,
+        sortByCreatedAt,
+        sortByUpdatedAt,
+        reportsPerPage,
+    } = useSelector((state) => state.reports);
+
+    useEffect(() => {
+        dispatch(fetchCategories());
+        dispatch(fetchUsers());
+        dispatch(fetchReports());
+    }, [dispatch]);
+
+    useEffect(() => {
+        dispatch(filterReports());
+        dispatch(sortReports());
+    }, [reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users, sortByCreatedAt, sortByUpdatedAt, dispatch]);
 
     const handleRowClick = (report, e) => {
-        // Если клик был по кнопке - не открываем превью
         if (e.target.tagName === 'IMG' || e.target.tagName === 'BUTTON') {
             return;
         }
-        setPreviewReport(report);
-    };
-
-    useEffect(() => {
-        const fetchReports = async () => {
-            setLoading(true);
-            try {
-                const response = await fetch(`${API_URL}/api/report/list`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    },
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    const formattedReports = data.data.map((report) => ({
-                        id: report.id,
-                        name: report.name,
-                        extension: report.extension,
-                        basket: report.basket,
-                        created_at: report.created_at,
-                        updated_at: report.updated_at,
-                        creator: report.user?.name || 'Неизвестно',
-                        category: report.category?.name || 'Загруженные отчеты',
-                    }));
-
-                    setReports(formattedReports);
-                    setFilteredReports(formattedReports); // Инициализируем отфильтрованные отчеты
-
-                    if (!newReportLoaded) {
-                        setShowToast(true);
-                        setNewReportLoaded(true);
-                    }
-                } else {
-                    console.error("Ошибка при получении отчётов:", data);
-                    toast.error("Ошибка при загрузке отчета.");
-                }
-            } catch (error) {
-                console.error("Ошибка при получении отчётов:", error);
-                toast.error("Ошибка при загрузке отчета.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        const fetchCategories = async () => {
-            try {
-                const response = await fetch(`${API_URL}/api/categories`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    },
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    setCategories(data.data);
-                } else {
-                    console.error("Ошибка при получении категорий:", data);
-                }
-            } catch (error) {
-                console.error("Ошибка при получении категорий:", error);
-            }
-        };
-
-        const fetchUsers = async () => {
-            try {
-                const response = await fetch(`${API_URL}/api/users?confirmed=true`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    },
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    setUsers(data.data);
-                } else {
-                    console.error("Ошибка при получении пользователей:", data);
-                }
-            } catch (error) {
-                console.error("Ошибка при получении пользователей:", error);
-            }
-        };
-
-        fetchCategories();
-        fetchUsers();
-        fetchReports();
-    }, []);
-
-    useEffect(() => {
-        const sortedReports = [...reports].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 5);
-        setLastModifiedReports(sortedReports);
-    }, [reports]);
-
-    const parseCustomDate = (dateString) => {
-        if (!dateString) return new Date(0); // возвращаем минимальную дату, если строка пустая
-
-        // Разбиваем строку на части: "01.04.2025 в 09:32" -> ["01.04.2025", "09:32"]
-        const [datePart, timePart] = dateString.split(' в ');
-        const [day, month, year] = datePart.split('.');
-        const [hours, minutes] = timePart.split(':');
-
-        // Создаем объект Date (месяцы в JS начинаются с 0, поэтому month - 1)
-        return new Date(year, month - 1, day, hours, minutes);
+        dispatch(setPreviewReport(report));
     };
 
     const handleSortByCreatedAt = () => {
         const newSort = sortByCreatedAt === 'asc' ? 'desc' : 'asc';
-        setSortByCreatedAt(newSort);
-        setSortByUpdatedAt(null);
-
-        const sorted = [...filteredReports].sort((a, b) => {
-            const dateA = parseCustomDate(a.created_at);
-            const dateB = parseCustomDate(b.created_at);
-            return newSort === 'asc' ? dateA - dateB : dateB - dateA;
-        });
-
-        setFilteredReports(sorted);
+        dispatch(setSortByCreatedAt(newSort));
     };
 
     const handleSortByUpdatedAt = () => {
         const newSort = sortByUpdatedAt === 'asc' ? 'desc' : 'asc';
-        setSortByUpdatedAt(newSort);
-        setSortByCreatedAt(null);
-
-        const sorted = [...filteredReports].sort((a, b) => {
-            const dateA = parseCustomDate(a.updated_at);
-            const dateB = parseCustomDate(b.updated_at);
-            return newSort === 'asc' ? dateA - dateB : dateB - dateA;
-        });
-
-        setFilteredReports(sorted);
+        dispatch(setSortByUpdatedAt(newSort));
     };
 
-    // const sortReports = (field, direction) => {
-    //     const sortedReports = [...filteredReports].sort((a, b) => {
-    //         const dateA = new Date(a[field]);
-    //         const dateB = new Date(b[field]);
-    //         return direction === 'asc' ? dateA - dateB : dateB - dateA;
-    //     });
-    //     setCurrentPage(1); // Сбросить страницу на первую после сортировки
-    //     setFilteredReports(sortedReports); // Обновляем отфильтрованные отчеты
-    // };
-
-
-    const handleDeleteReport = async (id, inBasket) => {
-        try {
-            const dataForm = { report_id: id };
-            if (!inBasket) {
-                dataForm.basket = 1;
-            }
-
-            const response = await fetch(`${API_URL}/api/report`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(dataForm),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                console.error(data.message || 'Ошибка при удалении отчета');
-                toast.error(data.message || 'Ошибка при удалении отчета');
-                return;
-            }
-
-            if (!inBasket) {
-                setReports(prevReports =>
-                    prevReports.map(report =>
-                        report.id === id ? { ...report, basket: "1" } : report
-                    )
-                );
-                toast.success('Отчет перемещен в корзину');
-            } else {
-                // Если запрос прошел успешно - значит права были
-                setReports(prevReports => prevReports.filter(report => report.id !== id));
-                toast.success('Отчет окончательно удален из корзины');
-            }
-        } catch (error) {
-            console.error('Ошибка при удалении отчета:', error);
-            toast.error('Произошла ошибка при удалении отчета');
-        }
+    const handleDeleteReport = (id, inBasket) => {
+        dispatch(deleteReport({ id, inBasket }));
     };
 
-    const handleEditReport = (id) => {
-        onReportSelect(id);
+    const handleRevertBasket = (id) => {
+        dispatch(revertReport(id));
     };
 
-    const handleRevertBasket = async (id) => {
-        try {
-            const response = await fetch(`${API_URL}/api/report`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ id, basket: null }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                setReports((prevReports) =>
-                    prevReports.map((report) =>
-                        report.id === id ? { ...report, basket: null } : report
-                    )
-                );
-                toast.success('Отчет восстановлен из корзины');
-            } else {
-                console.error(data.message || 'Не удалось восстановить отчет');
-                toast.error(data.message || 'Не удалось восстановить отчет');
-            }
-        } catch (error) {
-            console.error('Ошибка при восстановлении отчета:', error);
-            toast.error('Произошла ошибка при восстановлении отчета');
-        }
-    };
-
-    const handleExportReport = async (reportId, extension) => {
-        try {
-            const response = await fetch(`${API_URL}/api/report/export/${reportId}?format=${extension}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Ошибка при загрузке отчета');
-            }
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `report_${reportId}.${extension}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Ошибка экспорта отчета:", error);
-            toast.error("Ошибка при экспорте отчета.");
-        }
+    const handleExportReport = (reportId, extension) => {
+        dispatch(exportReport({ reportId, extension }));
     };
 
     const handlePageChange = (newPage) => {
-        setCurrentPage(newPage);
+        dispatch(setCurrentPage(newPage));
     };
 
     const handleUserChange = (event) => {
         const userId = Number(event.target.value);
-        setSelectedUser(userId !== 0 ? userId : null);
+        dispatch(setSelectedUser(userId !== 0 ? userId : null));
     };
 
     const handleCategoryChange = (event) => {
         const categoryId = Number(event.target.value);
-        setSelectedCategory(categoryId !== 0 ? categoryId : null);
+        dispatch(setSelectedCategory(categoryId !== 0 ? categoryId : null));
     };
 
     const handleSearchChange = (event) => {
-        setSearchQuery(event.target.value);
+        dispatch(setSearchQuery(event.target.value));
     };
 
     const handleBasket = () => {
-        setSelectedBasket(!selectedBasket);
+        dispatch(toggleSelectedBasket());
     };
-
-    useEffect(() => {
-        const filtered = reports.filter((report) => {
-            const matchesCategory =
-                selectedCategory === null || report.category === categories.find((category) => category.id === selectedCategory)?.name;
-            const matchesUser =
-                selectedUser === null || report.creator === users.find((user) => user.id === selectedUser)?.name;
-            const matchesSearch = [
-                report.name,
-                report.creator,
-                report.category || "",
-            ].some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()));
-
-            if (selectedBasket) {
-                return report.basket && matchesCategory && matchesUser && matchesSearch;
-            } else {
-                return !report.basket && matchesCategory && matchesUser && matchesSearch;
-            }
-        });
-
-        setFilteredReports(filtered); // Обновляем отфильтрованные отчеты
-    }, [reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users]);
 
     const indexOfLastReport = currentPage * reportsPerPage;
     const indexOfFirstReport = indexOfLastReport - reportsPerPage;
@@ -377,13 +151,13 @@ const Reports = ({ onReportSelect }) => {
         <div className={styles.container}>
             {loading && <div>Загрузка...</div>}
             <div className={styles.container__btn}>
-                <select className={styles.container__btn_item} onChange={(e) => setSelectedUser(Number(e.target.value) || null)}>
+                <select className={styles.container__btn_item} onChange={handleUserChange} value={selectedUser || 0}>
                     <option value="0">Выбор сотрудника</option>
                     {users.map((user) => (
                         <option key={user.id} value={user.id}>{user.name}</option>
                     ))}
                 </select>
-                <select className={styles.container__btn_item} onChange={(e) => setSelectedCategory(Number(e.target.value) || null)}>
+                <select className={styles.container__btn_item} onChange={handleCategoryChange} value={selectedCategory || 0}>
                     <option value="0">Выбор категории</option>
                     {categories.map((category) => (
                         <option key={category.id || 0} value={category.id || 0}>{category.name}</option>
@@ -394,10 +168,15 @@ const Reports = ({ onReportSelect }) => {
                     className={styles.search}
                     placeholder="Поиск"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={handleSearchChange}
                 />
                 <label className={styles.customCheckbox}>
-                    <input type="checkbox" className={styles.hiddenCheckbox} onChange={() => setSelectedBasket(!selectedBasket)} />
+                    <input
+                        type="checkbox"
+                        className={styles.hiddenCheckbox}
+                        checked={selectedBasket}
+                        onChange={handleBasket}
+                    />
                     <span className={styles.checkboxSwitch}></span>
                     В корзине
                 </label>
@@ -410,14 +189,14 @@ const Reports = ({ onReportSelect }) => {
                         <th onClick={handleSortByCreatedAt} style={{cursor: 'pointer'}}>
                             Дата создания
                             <span className={styles.sortIcon}>
-                                {sortByCreatedAt === 'asc' ? '↑' : '↓'}
-                            </span>
+                  {sortByCreatedAt === 'asc' ? '↑' : '↓'}
+                </span>
                         </th>
                         <th onClick={handleSortByUpdatedAt} style={{cursor: 'pointer'}}>
                             Дата изменения
                             <span className={styles.sortIcon}>
-                                {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
-                            </span>
+                  {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
+                </span>
                         </th>
                         <th>Кто создал</th>
                         <th>Категория</th>
@@ -427,7 +206,6 @@ const Reports = ({ onReportSelect }) => {
                     {currentReports.map((report) => (
                         <tr
                             key={report.id}
-                            className={selectedReport?.id === report.id ? styles.selected : ''}
                             onClick={(e) => handleRowClick(report, e)}
                             style={{ cursor: 'pointer' }}
                         >
@@ -453,7 +231,7 @@ const Reports = ({ onReportSelect }) => {
                                     alt="Редактировать"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleEditReport(report.id);
+                                        onReportSelect(report.id);
                                     }}
                                 />
                                 <img
@@ -490,41 +268,35 @@ const Reports = ({ onReportSelect }) => {
                         </tr>
                     ))}
                     </tbody>
-                    {previewReport && (
-                        <ReportPreview
-                            report={previewReport}
-                            onClose={() => setPreviewReport(null)}
-                        />
-                    )}
                 </table>
             </div>
             <div className={styles.pagination}>
                 <div className={styles["page-numbers"]}>
                     {pages.map((page, index) =>
-                        page === "..." ? (
-                            <span key={index} className={styles.dots}>...</span>
-                        ) : (
-                            <span
-                                key={index}
-                                className={`${styles["page-item"]} ${currentPage === page ? styles.active : ""}`}
-                                onClick={() => handlePageChange(page)}
-                            >
-                                {page}
-                            </span>
-                        )
+                            page === "..." ? (
+                                <span key={index} className={styles.dots}>...</span>
+                            ) : (
+                                <span
+                                    key={index}
+                                    className={`${styles["page-item"]} ${currentPage === page ? styles.active : ""}`}
+                                    onClick={() => handlePageChange(page)}
+                                >
+                {page}
+              </span>
+                            )
                     )}
                 </div>
             </div>
 
-            {showToast && <ToastContainer position="top-right"
-                                          autoClose={5000}
-                                          hideProgressBar={false}
-                                          newestOnTop={false}
-                                          closeOnClick
-                                          rtl={false}
-                                          pauseOnFocusLoss
-                                          draggable
-                                          pauseOnHover/>}
+            <ToastContainer position="top-right"
+                            autoClose={5000}
+                            hideProgressBar={false}
+                            newestOnTop={false}
+                            closeOnClick
+                            rtl={false}
+                            pauseOnFocusLoss
+                            draggable
+                            pauseOnHover/>
 
             <h3 className={styles.last_reports}>Последние измененные отчеты</h3>
             <div className={styles.lastModifiedReports}>

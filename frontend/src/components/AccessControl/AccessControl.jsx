@@ -290,7 +290,7 @@ const AccessControl = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                     />
-                    <button onClick={handleCreateCompanyAndAdmin}>Добавить компанию</button>
+                    <button className={styles.addCompBtn} onClick={handleCreateCompanyAndAdmin}>Добавить компанию</button>
                 </div>
             )}
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import styles from "./Analytics.module.sass";
 import { Bar, Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, LogarithmicScale } from 'chart.js';
+import zoomPlugin from 'chartjs-plugin-zoom';
 
 import jsPDF from "jspdf";
 import PptxGenJS from "pptxgenjs";
@@ -16,7 +17,9 @@ ChartJS.register(
     ArcElement,
     Title,
     Tooltip,
-    Legend
+    Legend,
+    zoomPlugin,
+    LogarithmicScale
 );
 
 const Analytics = () => {
@@ -30,6 +33,27 @@ const Analytics = () => {
     const [textChartDatasets, setTextChartDatasets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [chartType, setChartType] = useState("bar");
+    const [yAxisType, setYAxisType] = useState("linear");
+    const [fullscreenChart, setFullscreenChart] = useState(null); // Добавлено состояние для полного экрана
+
+    const handleChartTypeChange = (event) => {
+        setChartType(event.target.value);
+    };
+
+    const handleYAxisTypeChange = (event) => {
+        setYAxisType(event.target.value);
+    };
+
+    // Функция для открытия графика в полный экран
+    const openFullscreenChart = (chartData, isTextChart = false) => {
+        setFullscreenChart({ data: chartData, isTextChart });
+    };
+
+    // Функция для закрытия полного экрана
+    const closeFullscreenChart = () => {
+        setFullscreenChart(null);
+    };
 
     useEffect(() => {
         const fetchReports = async () => {
@@ -80,7 +104,11 @@ const Analytics = () => {
             const textColumns = [];
 
             report.headers.forEach((header, index) => {
-                const isNumeric = report.data.every(item => typeof item[index] === 'number');
+                const isNumeric = report.data.some(item => {
+                    const numValue = Number(item[index]);
+                    return !isNaN(numValue) && item[index] !== null && item[index] !== '';
+                });
+
                 if (isNumeric) {
                     numericColumns.push(header.name);
                 } else {
@@ -90,6 +118,10 @@ const Analytics = () => {
 
             setLocalColumns(numericColumns);
             setTextColumns(textColumns);
+            setDisplayedColumns(numericColumns.slice(0, 3));
+            if (textColumns.length > 0) {
+                setDisplayedTextColumns([textColumns[0]]);
+            }
         }
     }, [selectedReports]);
 
@@ -104,8 +136,8 @@ const Analytics = () => {
                     return {
                         label: column,
                         data,
-                        backgroundColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`, // Brighter color
-                        borderColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`, // Brighter border
+                        backgroundColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`,
+                        borderColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`,
                         borderWidth: 1,
                     };
                 });
@@ -136,8 +168,8 @@ const Analytics = () => {
                         datasets: [{
                             label: `Текстовые данные из ${column}`,
                             data: textValues,
-                            backgroundColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`), // Brighter color
-                            borderColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`), // Brighter border
+                            backgroundColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`),
+                            borderColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`),
                             borderWidth: 1,
                         }]
                     };
@@ -147,7 +179,6 @@ const Analytics = () => {
             setTextChartDatasets(newTextChartDatasets);
         }
     }, [selectedReports, displayedColumns, displayedTextColumns]);
-
 
     const handleSelectReport = async (reportId) => {
         setLoading(true);
@@ -218,8 +249,64 @@ const Analytics = () => {
         }
     };
 
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                type: yAxisType,
+            },
+        },
+        plugins: {
+            zoom: {
+                wheel: {
+                    enabled: true,
+                    speed: 0.1,
+                },
+                drag: {
+                    enabled: true,
+                },
+                pinch: {
+                    enabled: true,
+                },
+            },
+        },
+    };
+
     return (
         <div>
+            {/* Модальное окно для полного экрана */}
+            {fullscreenChart && (
+                <div className={styles.fullscreenModal} onClick={closeFullscreenChart}>
+                    <div className={styles.fullscreenContent} onClick={e => e.stopPropagation()}>
+                        <button className={styles.closeButton} onClick={closeFullscreenChart}>×</button>
+                        {chartType === "bar" && !fullscreenChart.isTextChart ? (
+                            <Bar
+                                data={fullscreenChart.data}
+                                options={{
+                                    ...chartOptions,
+                                    maintainAspectRatio: true,
+                                    responsive: true
+                                }}
+                                width={800}
+                                height={600}
+                            />
+                        ) : (
+                            <Doughnut
+                                data={fullscreenChart.data}
+                                options={{
+                                    ...chartOptions,
+                                    maintainAspectRatio: true,
+                                    responsive: true
+                                }}
+                                width={800}
+                                height={600}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className={styles.reportSelection}>
                 <label>Выберите отчет:</label>
                 <select onChange={(e) => handleSelectReport(Number(e.target.value))} defaultValue="">
@@ -235,6 +322,54 @@ const Analytics = () => {
 
             {selectedReports.length > 0 && (
                 <div>
+                    <h3>Выберите тип диаграммы:</h3>
+                    <div className={styles.radioGroup}>
+                        <label className={styles.radioContainer}>
+                            <input
+                                type="radio"
+                                value="bar"
+                                checked={chartType === "bar"}
+                                onChange={handleChartTypeChange}
+                                className={styles.radioInput}
+                            />
+                            <span className={styles.radioLabel}>Бар</span>
+                        </label>
+                        <label className={styles.radioContainer}>
+                            <input
+                                type="radio"
+                                value="doughnut"
+                                checked={chartType === "doughnut"}
+                                onChange={handleChartTypeChange}
+                                className={styles.radioInput}
+                            />
+                            <span className={styles.radioLabel}>Круговая</span>
+                        </label>
+                    </div>
+
+                    <h3>Выберите тип шкалы для оси Y:</h3>
+                    <div className={styles.radioGroup}>
+                        <label className={styles.radioContainer}>
+                            <input
+                                type="radio"
+                                value="linear"
+                                checked={yAxisType === "linear"}
+                                onChange={handleYAxisTypeChange}
+                                className={styles.radioInput}
+                            />
+                            <span className={styles.radioLabel}>Линейная</span>
+                        </label>
+                        <label className={styles.radioContainer}>
+                            <input
+                                type="radio"
+                                value="logarithmic"
+                                checked={yAxisType === "logarithmic"}
+                                onChange={handleYAxisTypeChange}
+                                className={styles.radioInput}
+                            />
+                            <span className={styles.radioLabel}>Логарифмическая</span>
+                        </label>
+                    </div>
+
                     <h3>Выберите числовые столбцы:</h3>
                     {localColumns.map((column) => (
                         <button
@@ -245,6 +380,7 @@ const Analytics = () => {
                             {column} {displayedColumns.includes(column) ? '✓' : ''}
                         </button>
                     ))}
+
                     <h3>Выберите текстовые столбцы:</h3>
                     {textColumns.map((column) => (
                         <button
@@ -260,13 +396,25 @@ const Analytics = () => {
 
             <div id="chartContainer" className={styles.chartContainer}>
                 {chartDatasets.map((chartData, index) => (
-                    <div key={index} className={styles.chart}>
-                        <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />
+                    <div
+                        key={index}
+                        className={styles.chart}
+                        onClick={() => openFullscreenChart(chartData)}
+                    >
+                        {chartType === "bar" ? (
+                            <Bar data={chartData} options={chartOptions} />
+                        ) : (
+                            <Doughnut data={chartData} options={chartOptions} />
+                        )}
                     </div>
                 ))}
                 {textChartDatasets.map((chartData, index) => (
-                    <div key={index} className={styles.chart}>
-                        <Doughnut data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />
+                    <div
+                        key={index}
+                        className={styles.chart}
+                        onClick={() => openFullscreenChart(chartData, true)}
+                    >
+                        <Doughnut data={chartData} options={chartOptions} />
                     </div>
                 ))}
             </div>

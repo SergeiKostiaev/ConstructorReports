@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Добавьте useEffect
 import styles from './Home.module.sass';
 import { useAuth } from "../../context/AuthContext";
 import AccessControl from "../AccessControl/AccessControl.jsx";
@@ -17,18 +17,34 @@ const Home = () => {
     const { logout } = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
 
-    // const name = localStorage.getItem("name") || "Гость";
-    // const initials = name !== "Гость"
-    //     ? name.split(" ").map((word) => word[0]).slice(2, 8).join("").toUpperCase()
-    //     : null;
+    // Загружаем сохранённую вкладку из localStorage при инициализации
+    const [active, setActive] = useState(() => {
+        const savedTab = localStorage.getItem('activeTab');
+        return savedTab !== null ? Number(savedTab) : 0;
+    });
 
-    const [active, setActive] = useState(0);
-    const [selectedReportId, setSelectedReportId] = useState(null);
+    const [selectedReportId, setSelectedReportId] = useState(() => {
+        const savedReportId = localStorage.getItem('selectedReportId');
+        return savedReportId !== null ? Number(savedReportId) : null;
+    });
     const userRole = Number(localStorage.getItem('role'));
     const isConfirmed =
         userRole === 2 ||
         userRole === 3 ||
         (userRole === 1 && localStorage.getItem('confirmed') === 'true');
+
+    useEffect(() => {
+        if (selectedReportId !== null) {
+            localStorage.setItem('selectedReportId', selectedReportId.toString());
+        } else {
+            localStorage.removeItem('selectedReportId');
+        }
+    }, [selectedReportId]);
+
+    // Сохраняем активную вкладку в localStorage при её изменении
+    useEffect(() => {
+        localStorage.setItem('activeTab', active.toString());
+    }, [active]);
 
     const onReportSelect = (id) => {
         setSelectedReportId(id);
@@ -49,9 +65,9 @@ const Home = () => {
             ),
         },
         {
-            title: 'Настройка отчетов',
+            title: 'Конструктор отчетов',
             content: (
-                <DataContainer title="Настройка отчетов">
+                <DataContainer title="Конструктор отчетов">
                     {selectedReportId !== null ? (
                         <ReportCreation idReport={selectedReportId} />
                     ) : (
@@ -105,13 +121,16 @@ const Home = () => {
             const workbook = XLSX.read(data, { type: 'array' });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                raw: true, // оставим "сырой" формат, чтобы вручную обработать даты
+                dateNF: "dd.mm.yyyy"
+            });
 
-            // Исправление дат
+            // Преобразуем даты в строковый формат dd.mm.yyyy
             jsonData.forEach(row => {
-                Object.keys(row).forEach(key => {
-                    if (!isNaN(row[key]) && row[key] > 30000) { // Простая проверка на дату
-                        row[key] = XLSX.SSF.format("dd.mm.yyyy", row[key]); // Преобразование в дату
+                Object.entries(row).forEach(([key, value]) => {
+                    if (Object.prototype.toString.call(value) === '[object Date]') {
+                        row[key] = XLSX.SSF.format("dd.mm.yyyy", value);
                     }
                 });
             });
