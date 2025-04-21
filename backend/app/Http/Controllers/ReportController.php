@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\ReportExport;
 use App\Imports\ReportImport;
 use App\Models\Report;
+use App\Models\Status;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -35,11 +36,11 @@ class ReportController extends Controller
 
     public function index(Request $request, $id)
     {
-        $report = Report::with(['category', 'user'])
+        $report = Report::with(['category', 'status', 'user'])
             ->join('users', 'users.id', '=', 'reports.user_id')
             ->where('reports.id', $id)
             ->where('users.company_id', $request->user->company_id)
-            ->first(['reports.id', 'reports.category_id', 'reports.name', 'reports.extension', 'reports.user_id', 'reports.headers', 'reports.data', 'reports.whereData']);
+            ->first(['reports.id', 'reports.status_id', 'reports.category_id', 'reports.name', 'reports.extension', 'reports.user_id', 'reports.headers', 'reports.data', 'reports.whereData']);
         if (!$report) return error(Report::$notForridenFound, 404);
         return success($report);
     }
@@ -89,7 +90,24 @@ class ReportController extends Controller
             // foreach ($data['headers'] as &$k) {
             //     if (!$k['name']) $k['name'] = Transliterate::slugify($k['title']);
             // }
+            $data['status_id'] = Status::$idInWork;
             Report::where('id', $data['id'])->update($data);
+            return success(Report::$changeReport);
+        }
+
+        return $validateFail;
+    }
+
+    public function complete($id)
+    {
+        $data = ['id' => $id];
+        $validateFail = validateFailed($data, [
+            'id' => 'required|integer|exists:reports'
+        ]);
+
+        if (!$validateFail) {
+            $data['status_id'] = Status::$idComplete;
+            Report::where('id', $id)->update($data);
             return success(Report::$changeReport);
         }
 
@@ -180,14 +198,15 @@ class ReportController extends Controller
 
     public function list(Request $request)
     {
-        $report = Report::with(['category', 'user'])
+        $report = Report::with(['category', 'status', 'user'])
             ->join('users', 'users.id', '=', 'reports.user_id')
             ->where('users.company_id', $request->user->company_id);
         if ($request->basket) $report->where('reports.basket', 1);
         if ($request->s) $report->where('reports.name', 'like', '%' . $request->s .'%');
         if ($request->category_id) $report->where('reports.category_id', $request->category_id);
+        if ($request->status_id) $report->where('reports.status_id', $request->status_id);
         if ($request->user_id) $report->where('reports.user_id', $request->user_id);
-        return success($report->get(['reports.id', 'reports.name', 'reports.extension', 'reports.basket', 'reports.category_id', 'reports.user_id', 'reports.created_at', 'reports.updated_at']));
+        return success($report->get(['reports.id', 'reports.name', 'reports.extension', 'reports.basket', 'reports.status_id', 'reports.category_id', 'reports.user_id', 'reports.created_at', 'reports.updated_at']));
     }
 
     public function export(Request $request, $id)

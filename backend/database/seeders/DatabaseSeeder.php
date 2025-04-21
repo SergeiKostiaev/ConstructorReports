@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Role;
+use App\Models\Status;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -39,6 +40,16 @@ class DatabaseSeeder extends Seeder
         ]);
         Category::create([
             'name' => 'Отчеты по задачам'
+        ]);
+
+        Status::create([
+            'name' => 'Загружен'
+        ]);
+        Status::create([
+            'name' => 'В работе'
+        ]);
+        Status::create([
+            'name' => 'Завершен'
         ]);
 
         User::create([

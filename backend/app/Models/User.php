@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class User extends Authenticatable
@@ -53,6 +54,23 @@ class User extends Authenticatable
 
     public function isSuperAdmin() {
         return $this->role_id == self::$idSuperAdmin;
+    }
+
+    public function updateById($id, $data) {
+        $user = User::where('id', $id)->first();
+        if (!$user) return error(self::$notFound, 404);
+
+        if ($user->email !== $data['email']) {
+            $checkUser = User::where('email', $data['email'])->first();
+            if (!$checkUser) {
+                $user->email = $data['email'];
+            } else return error("Такой email уже занят");
+        };
+
+        $user->name = $data['name'];
+        if (isset($data['password'])) $user->password = Hash::make($data['password']);
+        $user->save();
+        return success('Пользователь изменен');
     }
 
     public function confirmed($id) {
