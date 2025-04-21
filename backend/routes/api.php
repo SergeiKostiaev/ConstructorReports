@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\StatusController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -29,6 +30,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/report', [ReportController::class, 'add']);
 
     Route::get('/users', [AuthController::class, 'list']);
+    Route::get('/statuses', [StatusController::class, 'list']);
+    Route::patch('/report/{id}/complete', [ReportController::class, 'complete']);
 
     Route::middleware('checkAdmin')->group(function () {
         Route::patch('/user/confirmed', [AuthController::class, 'confirmed']);
@@ -39,6 +42,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('checkSuperAdmin')->group(function () {
         Route::post('/user/admin', [AuthController::class, 'register']);
+        Route::patch('/user/{id}/update', [AuthController::class, 'change']);
         Route::post('/company', [CompanyController::class, 'add']);
         Route::delete('/company/{id}', [CompanyController::class, 'remove']);
     });

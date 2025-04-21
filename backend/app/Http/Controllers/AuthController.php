@@ -15,11 +15,11 @@ class AuthController extends Controller
     {
         $data = $request->all();
 
-        $validateFail = validateFailed($request->all(), [
+        $validateFail = validateFailed($data, [
             'company_id' => 'required|string|max:255|exists:companies,name',
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string',
+            'password' => 'required|string|max:255',
         ]);
 
         if (!$validateFail) {
@@ -97,5 +97,21 @@ class AuthController extends Controller
 
     public function delete(Request $request) {
         return $request->user->remove($request->user_id);
+    }
+
+    public function change(Request $request, $id) {
+        $data = $request->all();
+
+        $validateFail = validateFailed($data, [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255',
+            'password' => 'string|max:255',
+        ]);
+
+        if (!$validateFail) {
+            return $request->user->updateById($id, $data);
+        }
+
+        return $validateFail;
     }
 }
