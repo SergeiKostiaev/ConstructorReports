@@ -607,17 +607,13 @@ const ReportCreation = ({ idReport }) => {
                         </label>
                     </div>
                     {column.type === "a" && column.name.indexOf('new_column_') === -1 && (
-                        <select
-                            className={styles.slct_column}
+                        <input
+                            type="text"
+                            className={styles.inpt_js}
                             value={column.title}
                             onChange={(e) => handleColumnChange(index, "title", e.target.value)}
-                        >
-                            {dataHeaders.map((header) => (
-                                <option key={header.name} value={header.title}>
-                                    {header.title}
-                                </option>
-                            ))}
-                        </select>
+                            placeholder="Введите заголовок"
+                        />
                     )}
                     {column.name.indexOf('new_column_') === 0 && (
                         <input
