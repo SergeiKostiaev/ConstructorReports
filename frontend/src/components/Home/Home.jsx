@@ -161,23 +161,35 @@ const Home = () => {
             const workbook = XLSX.read(data, { type: 'array' });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-                raw: true,
-                dateNF: "dd.mm.yyyy"
-            });
 
-            // Преобразуем даты в строковый формат dd.mm.yyyy
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+
+            // Преобразуем числовые даты в строки
             jsonData.forEach(row => {
                 Object.entries(row).forEach(([key, value]) => {
-                    if (Object.prototype.toString.call(value) === '[object Date]') {
-                        row[key] = XLSX.SSF.format("dd.mm.yyyy", value);
+                    if (typeof value === 'number' && value > 30000 && value < 60000) {
+                        const parsedDate = XLSX.SSF.parse_date_code(value);
+                        if (parsedDate) {
+                            const day = String(parsedDate.d).padStart(2, '0');
+                            const month = String(parsedDate.m).padStart(2, '0');
+                            const year = String(parsedDate.y);
+                            row[key] = `${day}.${month}.${year}`;
+                        }
                     }
                 });
             });
 
-            // Отправляем данные на сервер
+            // Перезапишем worksheet
+            const newWorksheet = XLSX.utils.json_to_sheet(jsonData);
+            const newWorkbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, sheetName);
+
+            // Создаем Blob из workbook
+            const wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
+            const modifiedFile = new Blob([wbout], { type: file.type });
+
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("file", new File([modifiedFile], file.name, { type: file.type }));
 
             try {
                 const response = await fetch(`${API_URL}/api/report/import`, {

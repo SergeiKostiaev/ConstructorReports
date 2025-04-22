@@ -149,7 +149,7 @@ export const revertReport = createAsyncThunk(
 // Экспорт отчета
 export const exportReport = createAsyncThunk(
     'reports/exportReport',
-    async ({ reportId, extension }, { rejectWithValue }) => {
+    async ({ reportId, extension, updatedAt }, { rejectWithValue }) => {
         try {
             const response = await fetch(`${API_URL}/api/report/export/${reportId}?format=${extension}`, {
                 method: 'GET',
@@ -163,14 +163,24 @@ export const exportReport = createAsyncThunk(
             }
 
             const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
+
+            // форматируем дату из updatedAt, если она передана
+            let timestamp = '';
+            if (updatedAt) {
+                const [date, time] = updatedAt.split(' в ');
+                timestamp = `${date.replace(/\./g, '-')}_${time.replace(/:/g, '-')}`; // 21-04-2025_14-12
+            } else {
+                const now = new Date();
+                timestamp = now.toLocaleString('ru-RU').replace(/[.,: ]+/g, '_');
+            }
+
             const a = document.createElement('a');
-            a.href = url;
-            a.download = `report_${reportId}.${extension}`;
+            a.href = window.URL.createObjectURL(blob);
+            a.download = `report_${reportId}_${timestamp}.${extension}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+            window.URL.revokeObjectURL(a.href);
 
             return { reportId };
         } catch (error) {
@@ -200,8 +210,6 @@ const reportsSlice = createSlice({
         previewReport: null,
         newReportLoaded: false,
         reportsPerPage: 6,
-        activeProcesses: JSON.parse(localStorage.getItem('activeProcesses')) || [],
-        reportStatuses: JSON.parse(localStorage.getItem('reportStatuses')) || {},
     },
     reducers: {
         setSelectedUser: (state, action) => {
@@ -276,39 +284,6 @@ const reportsSlice = createSlice({
                 });
             }
         },
-        addActiveProcess: (state, action) => {
-            const existingIndex = state.activeProcesses.findIndex(p => p.id === action.payload.id);
-            if (existingIndex === -1) {
-                state.activeProcesses.push({
-                    ...action.payload,
-                    progress: 25,
-                    startedAt: new Date().toLocaleString(),
-                });
-                state.reportStatuses[action.payload.id] = 'В работе';
-                updateLocalStorage(state);
-            }
-        },
-        updateProcessProgress: (state, action) => {
-            const { id, progress } = action.payload;
-            const process = state.activeProcesses.find(p => p.id === id);
-            if (process) {
-                process.progress = progress;
-                if (progress >= 100) {
-                    state.reportStatuses[id] = 'Завершен';
-                }
-                updateLocalStorage(state);
-            }
-        },
-        removeActiveProcess: (state, action) => {
-            state.activeProcesses = state.activeProcesses.filter(p => p.id !== action.payload);
-            state.reportStatuses[action.payload] = 'Отменен';
-            updateLocalStorage(state);
-        },
-        setReportStatus: (state, action) => {
-            const { id, status } = action.payload;
-            state.reportStatuses[id] = status;
-            updateLocalStorage(state);
-        },
     },
     extraReducers: (builder) => {
         builder
@@ -379,11 +354,6 @@ const reportsSlice = createSlice({
     },
 });
 
-const updateLocalStorage = (state) => {
-    localStorage.setItem('activeProcesses', JSON.stringify(state.activeProcesses));
-    localStorage.setItem('reportStatuses', JSON.stringify(state.reportStatuses));
-};
-
 export const {
     setSelectedUser,
     setSelectedCategory,
@@ -395,10 +365,7 @@ export const {
     setPreviewReport,
     filterReports,
     sortReports,
-    addActiveProcess,
-    updateProcessProgress,
-    removeActiveProcess,
-    setReportStatus,
 } = reportsSlice.actions;
 
 export default reportsSlice.reducer;
+

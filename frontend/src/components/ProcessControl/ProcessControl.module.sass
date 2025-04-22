@@ -81,10 +81,23 @@
   transition: all 0.2s
   font-size: 14px
   margin-left: 10px
-
   &:hover
     background: #ff5252
     transform: scale(1.05)
+
+.abortButtonModal
+    background: #ff6b6b
+    color: white
+    border: none
+    padding: 8px 15px
+    border-radius: 4px
+    cursor: pointer
+    transition: all 0.2s
+    font-size: 14px
+    margin-right: 10px
+    &:hover
+      background: #ff5252
+      transform: scale(1.05)
 
 .fileList
   overflow-x: auto
@@ -267,8 +280,9 @@
 
   &:hover
     background: idx.$main-btn-hover
-    transform: translateY(-1px)
+    transform: scale(1.05)
     box-shadow: 0 2px 8px rgba(0,0,0,0.1)
+
 
 /* Адаптивные стили */
 @media (max-width: 768px)

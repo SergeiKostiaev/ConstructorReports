@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import styles from "./Reports.module.sass";
+import { formatExcelSerialDate } from '../Utils/excelDateUtils.jsx';
 import {
     fetchReports,
     fetchCategories,
@@ -18,7 +19,6 @@ import {
     setPreviewReport,
     filterReports,
     sortReports,
-    addActiveProcess,
 } from "../features/reportsSlice.jsx";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -47,8 +47,6 @@ const Reports = ({ onReportSelect }) => {
         reportsPerPage,
         activeProcesses,
     } = useSelector((state) => state.reports);
-
-    console.log('Active Reports:', activeProcesses);
 
     useEffect(() => {
         dispatch(fetchCategories());
@@ -86,8 +84,13 @@ const Reports = ({ onReportSelect }) => {
         dispatch(revertReport(id));
     };
 
-    const handleExportReport = (reportId, extension) => {
-        dispatch(exportReport({ reportId, extension }));
+    const handleExportReport = (report, extension) => {
+        const formattedDate = formatExcelSerialDate(report.date_from);
+        dispatch(exportReport({
+            reportId: report.id,
+            extension,
+            dateFrom: formattedDate
+        }));
     };
 
     const handlePageChange = (newPage) => {
@@ -193,14 +196,14 @@ const Reports = ({ onReportSelect }) => {
                         <th onClick={handleSortByCreatedAt} style={{cursor: 'pointer'}}>
                             Дата создания
                             <span className={styles.sortIcon}>
-                  {sortByCreatedAt === 'asc' ? '↑' : '↓'}
-                </span>
+                              {sortByCreatedAt === 'asc' ? '↑' : '↓'}
+                            </span>
                         </th>
                         <th onClick={handleSortByUpdatedAt} style={{cursor: 'pointer'}}>
                             Дата изменения
                             <span className={styles.sortIcon}>
-                  {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
-                </span>
+                              {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
+                            </span>
                         </th>
                         <th>Кто создал</th>
                         <th>Категория</th>
@@ -235,9 +238,6 @@ const Reports = ({ onReportSelect }) => {
                                     alt="Редактировать"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (!activeProcesses.find(p => p.id === report.id)) {
-                                            dispatch(addActiveProcess(report)); // Добавляем только если отчёт ещё не в активных
-                                        }
                                         onReportSelect(report.id);
                                     }}
                                 />
@@ -246,7 +246,7 @@ const Reports = ({ onReportSelect }) => {
                                     alt="Экспорт"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleExportReport(report.id, report.extension);
+                                        handleExportReport(report, report.extension);
                                     }}
                                 />
 
@@ -280,30 +280,20 @@ const Reports = ({ onReportSelect }) => {
             <div className={styles.pagination}>
                 <div className={styles["page-numbers"]}>
                     {pages.map((page, index) =>
-                            page === "..." ? (
-                                <span key={index} className={styles.dots}>...</span>
-                            ) : (
-                                <span
-                                    key={index}
-                                    className={`${styles["page-item"]} ${currentPage === page ? styles.active : ""}`}
-                                    onClick={() => handlePageChange(page)}
-                                >
-                {page}
-              </span>
-                            )
+                        page === "..." ? (
+                            <span key={index} className={styles.dots}>...</span>
+                        ) : (
+                            <span
+                                key={index}
+                                className={`${styles["page-item"]} ${currentPage === page ? styles.active : ''}`}
+                                onClick={() => handlePageChange(page)}
+                            >
+                                {page}
+                            </span>
+                        )
                     )}
                 </div>
             </div>
-
-            <ToastContainer position="top-right"
-                            autoClose={5000}
-                            hideProgressBar={false}
-                            newestOnTop={false}
-                            closeOnClick
-                            rtl={false}
-                            pauseOnFocusLoss
-                            draggable
-                            pauseOnHover/>
         </div>
     );
 };

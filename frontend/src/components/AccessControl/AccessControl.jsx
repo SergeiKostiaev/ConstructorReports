@@ -229,13 +229,12 @@ const AccessControl = () => {
                 email: editingUser.email,
             };
 
-            // Если новый пароль введен, добавляем его в payload
             if (newPassword) {
                 payload.password = newPassword;
             }
 
-            const response = await fetch(`${API_URL}/api/user`, {
-                method: 'PUT',
+            const response = await fetch(`${API_URL}/api/user/${editingUser.id}/update`, {
+                method: 'PATCH',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json'

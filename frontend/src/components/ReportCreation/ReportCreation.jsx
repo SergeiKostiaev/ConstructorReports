@@ -3,7 +3,7 @@ import styles from "./ReportCreation.module.sass";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Parser } from 'expr-eval';
-import { addActiveProcess, setReportStatus } from '../features/reportsSlice.jsx';
+// import { addActiveProcess, setReportStatus } from '../features/reportsSlice.jsx';
 
 import screp from '../../assets/screp.svg';
 
@@ -21,7 +21,6 @@ const ReportCreation = ({ idReport }) => {
     const [selectedExtension, setSelectedExtension] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
     const [currentReportId, setCurrentReportId] = useState(idReport);
-
 
     useEffect(() => {
         const savedReportId = localStorage.getItem('selectedReportId');
@@ -133,7 +132,6 @@ const ReportCreation = ({ idReport }) => {
                 } else alert(JSON.stringify(data));
             });
 
-
         fetch(`${API_URL}/api/categories`, {
             method: 'GET',
             headers: {
@@ -187,7 +185,6 @@ const ReportCreation = ({ idReport }) => {
         const diffYears = diffTime / (1000 * 3600 * 24 * 365);  // конвертируем в годы
         return diffYears;
     };
-
 
     const filterDataReport = () => {
         const arrayData = [...dataReport];
@@ -279,16 +276,17 @@ const ReportCreation = ({ idReport }) => {
                     try {
                         const variables = {};
 
-                        // 1. Подготовка переменных
+                        // 1. Сначала добавляем все стандартные переменные из столбцов
                         customWhereColumns.forEach((col, index) => {
                             let value = record[index];
+                            if (value === undefined || value === null) value = '';
 
-                            // Обработка дат
+                            // Для дат преобразуем в timestamp
                             if (typeof value === "string" && value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
                                 value = parseDateToTimestamp(value);
                             }
 
-                            // Для строковых значений добавляем кавычки, если их нет
+                            // Для строк добавляем кавычки
                             if (typeof value === 'string' && !value.match(/^".*"$|^'.*'$|^\d+$/)) {
                                 value = `"${value}"`;
                             }
@@ -296,44 +294,59 @@ const ReportCreation = ({ idReport }) => {
                             variables[col.name] = value;
                         });
 
-                        // 2. Добавление специальных переменных
-                        if (record[iCol] && record[iCol] !== "") {
-                            variables['yearsOfExperience'] = calculateYearsOfExperience(record[iCol]);
+                        // 2. Добавляем yearsOfExperience для текущего столбца, если это дата
+                        const currentValue = record[iCol];
+                        if (currentValue && typeof currentValue === "string" && currentValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                            variables['yearsOfExperience'] = calculateYearsOfExperience(currentValue);
                         }
 
-                        // 3. Подготовка выражения
+                        // 3. Подготавливаем выражение
                         let preparedExpression = column.fx;
 
-                        // Автоматическое добавление кавычек к строковым литералам
-                        preparedExpression = preparedExpression.replace(/(\b[а-яА-ЯёЁa-zA-Z-]+\b)(?=\s*[=><!])/g, '"$1"');
+                        // Автодобавление кавычек к строкам в условиях
+                        preparedExpression = preparedExpression.replace(
+                            /(\b[а-яА-ЯёЁa-zA-Z-]+\b)(?=\s*[=><!])/g,
+                            '"$1"'
+                        );
 
                         // Обработка тернарного оператора
-                        preparedExpression = preparedExpression.replace(/\?\s*([а-яА-ЯёЁa-zA-Z-]+)\s*:/g, '? "$1" :');
-                        preparedExpression = preparedExpression.replace(/:\s*([а-яА-ЯёЁa-zA-Z-]+)$/g, ': "$1"');
+                        preparedExpression = preparedExpression.replace(
+                            /\?\s*([а-яА-ЯёЁa-zA-Z-]+)\s*:/g,
+                            '? "$1" :'
+                        );
+                        preparedExpression = preparedExpression.replace(
+                            /:\s*([а-яА-ЯёЁa-zA-Z-]+)$/g,
+                            ': "$1"'
+                        );
 
+                        // Замена технических значений
                         preparedExpression = replaceDatesInExpression(preparedExpression);
                         preparedExpression = normalizeNumbers(preparedExpression);
 
-                        // 4. Подстановка переменных
-                        preparedExpression = preparedExpression.replace(/\[([^\]]+)]/g, (match, varName) => {
-                            return variables[varName] || '""'; // Возвращаем переменную или пустую строку
-                        });
+                        // 4. Подставляем переменные
+                        preparedExpression = preparedExpression.replace(
+                            /\[([^\]]+)]/g,
+                            (match, varName) => variables[varName] || '""'
+                        );
 
-                        // 5. Парсинг и выполнение
+                        // 5. Вычисляем результат
                         const parser = new Parser();
                         const expression = parser.parse(preparedExpression);
                         const result = expression.evaluate(variables);
 
-                        // 6. Сохранение результата
-                        record[iCol] = typeof result === 'boolean' ? (result ? "Да" : "Нет") : result;
+                        // 6. Сохраняем результат
+                        record[iCol] = typeof result === 'boolean'
+                            ? (result ? "Да" : "Нет")
+                            : result;
 
                     } catch (error) {
-                        console.error(`Ошибка в выражении: ${column.fx}`, error);
-                        record[iCol] = `Ошибка: ${error.message.replace('undefined variable', 'неизвестная переменная')}`;
+                        console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
+                        record[iCol] = `Ошибка: ${error.message}`;
                     }
                 });
             }
 
+            // Обработка условий WHERE (остаётся без изменений)
             if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
                 const { operator = dataWhereColumns[0], value } = column.where;
 
@@ -342,7 +355,6 @@ const ReportCreation = ({ idReport }) => {
                         let recordValue = record[iCol];
                         let compareValue = value;
 
-                        // Обработка дат
                         if (typeof recordValue === 'string' && recordValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
                             recordValue = parseDateToTimestamp(recordValue);
                         }
@@ -350,7 +362,6 @@ const ReportCreation = ({ idReport }) => {
                             compareValue = parseDateToTimestamp(compareValue);
                         }
 
-                        // Обработка строковых значений
                         if (typeof recordValue === 'string' && !recordValue.match(/^".*"$|^'.*'$/)) {
                             recordValue = `"${recordValue}"`;
                         }
@@ -369,7 +380,7 @@ const ReportCreation = ({ idReport }) => {
                             newArrayWhereData.push(record);
                         }
                     } catch (error) {
-                        console.error(`Ошибка в условии: ${record[iCol]} ${operator} ${value}`, error);
+                        console.error(`Ошибка в условии WHERE:`, error);
                     }
                 });
             }
@@ -412,6 +423,7 @@ const ReportCreation = ({ idReport }) => {
             })
             .catch(error => {
                 console.error("Error while generating preview:", error);
+                toast.error("Ошибка при создании предпросмотра", { position: "top-right" });
             });
     };
 
@@ -622,15 +634,7 @@ const ReportCreation = ({ idReport }) => {
                             className={styles.inpt_js}
                             value={column.fx ?? ''}
                             onChange={(e) => {
-                                try {
-                                    validateExpression(e.target.value);
                                     handleColumnChange(index, "fx", e.target.value);
-                                } catch (error) {
-                                    toast.error(`Ошибка в выражении: ${error.message}`);
-                                    // Можно либо не обновлять состояние при ошибке,
-                                    // либо обновлять, но показать ошибку
-                                    handleColumnChange(index, "fx", e.target.value);
-                                }
                             }}
                             placeholder='Пример: [professiya] == "Web-разработчик" ? "Да" : "Нет"'
                             title="Формат: [поле] оператор 'значение' ? 'если_да' : 'если_нет'"
@@ -643,7 +647,6 @@ const ReportCreation = ({ idReport }) => {
 
             <button onClick={handleChangeToReport} className={styles.addToReportBtn}>Изменить отчет</button>
         </div>
-
     );
 };
 
