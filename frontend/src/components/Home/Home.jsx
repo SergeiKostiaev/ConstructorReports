@@ -36,7 +36,7 @@ const Home = () => {
 
             const data = await response.json();
             console.log('Fetched reports:', data);
-            setReports(Array.isArray(data) ? data : []);
+            setReports(Array.isArray(data) ? data : []); // обновляем список отчетов
         } catch (error) {
             toast.error("Ошибка загрузки отчетов", { position: "top-right" });
         }
@@ -154,63 +154,81 @@ const Home = () => {
         }
 
         const file = e.target.files[0];
-        const reader = new FileReader();
+        const fileType = file.name.split('.').pop().toLowerCase();
+        console.log("Загружаемый файл:", file);
+        console.log("Тип файла:", fileType);
 
-        reader.onload = async (event) => {
-            const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
+        if (fileType === 'json') {
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const jsonData = JSON.parse(event.target.result);
+                    const formData = new FormData();
+                    formData.append("file", new Blob([JSON.stringify(jsonData)], { type: 'application/json' }), file.name);
 
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+                    const response = await fetch(`${API_URL}/api/report/import`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${bearerToken}` },
+                        body: formData,
+                    });
 
-            // Преобразуем числовые даты в строки
-            jsonData.forEach(row => {
-                Object.entries(row).forEach(([key, value]) => {
-                    if (typeof value === 'number' && value > 30000 && value < 60000) {
-                        const parsedDate = XLSX.SSF.parse_date_code(value);
-                        if (parsedDate) {
-                            const day = String(parsedDate.d).padStart(2, '0');
-                            const month = String(parsedDate.m).padStart(2, '0');
-                            const year = String(parsedDate.y);
-                            row[key] = `${day}.${month}.${year}`;
+                    const responseText = await response.text();
+                    try {
+                        const result = JSON.parse(responseText);
+                        console.log("Результат от сервера:", result);
+                        if (result.success) {
+                            toast.success("Отчет успешно импортирован", { position: "top-right" });
+                            fetchReports();
+                        } else {
+                            toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
                         }
+                    } catch (err) {
+                        console.error("Не удалось разобрать JSON. Сервер вернул:", responseText);
+                        toast.error("Сервер вернул неожиданный ответ (возможно, HTML)", { position: "top-right" });
                     }
-                });
-            });
+                } catch (error) {
+                    console.error("Ошибка при обработке JSON:", error);
+                    toast.error("Ошибка при обработке JSON файла", { position: "top-right" });
+                }
+            };
 
-            // Перезапишем worksheet
-            const newWorksheet = XLSX.utils.json_to_sheet(jsonData);
-            const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, sheetName);
-
-            // Создаем Blob из workbook
-            const wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
-            const modifiedFile = new Blob([wbout], { type: file.type });
-
-            const formData = new FormData();
-            formData.append("file", new File([modifiedFile], file.name, { type: file.type }));
-
+            reader.readAsText(file);
+        } else if (['xls', 'xlsx', 'ods', 'csv'].includes(fileType)) {
             try {
+                const formData = new FormData();
+                formData.append("file", file); // ✅ ОТПРАВЛЯЕМ ИСХОДНЫЙ ФАЙЛ
+
                 const response = await fetch(`${API_URL}/api/report/import`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${bearerToken}` },
                     body: formData,
                 });
-                const result = await response.json();
-                if (result.success) {
-                    toast.success("Отчет успешно импортирован", { position: "top-right" });
-                    fetchReports(); // обновляем список отчетов
-                } else {
-                    toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
+
+                const responseText = await response.text();
+                try {
+                    const result = JSON.parse(responseText);
+                    console.log("Результат от сервера (XLSX/ODS/CSV):", result);
+
+                    if (result.success) {
+                        toast.success("Отчет успешно импортирован", { position: "top-right" });
+                        fetchReports();
+                    } else {
+                        toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
+                    }
+                } catch (err) {
+                    console.error("Сервер вернул не JSON:", responseText);
+                    toast.error("Сервер вернул неожиданный ответ", { position: "top-right" });
                 }
             } catch (error) {
-                toast.error("Ошибка загрузки файла", { position: "top-right" });
+                console.error("Ошибка при отправке файла:", error);
+                toast.error("Ошибка при отправке Excel/ODS файла", { position: "top-right" });
             }
-        };
-
-        reader.readAsArrayBuffer(file);
+        } else {
+            toast.warn("Формат файла не поддерживается", { position: "top-right" });
+        }
     };
+
+
 
     return (
         <div className={styles.container}>
