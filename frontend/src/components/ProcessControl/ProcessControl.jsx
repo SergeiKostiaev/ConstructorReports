@@ -113,45 +113,48 @@ const ProcessControl = () => {
     };
 
     const handleShowDetails = async (report) => {
+        console.log('Открыт отчет:', report);
         setSelectedReport(report);
         setShowDetailsModal(true);
-        if (report.status_id === 1) {
-            await updateReportStatus(report.id, 'В работе');
-        }
     };
 
-    const updateReportStatus = async (reportId, status) => {
-        try {
-            const statusId = status === 'В работе' ? 2 : status === 'Завершен' ? 3 : 1;
-
-            const response = await fetch(`${API_URL}/api/report/${reportId}/update`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    status,
-                    status_id: statusId,
-                    processing_started: status === 'В работе' ? new Date().toISOString() : undefined
-                }),
-            });
-
-            if (!response.ok) throw new Error('Ошибка при обновлении статуса');
-
-            // Обновляем данные в состоянии
-            loadReports();
-
-            toast.success('Статус обновлен успешно', { position: "top-right" });
-        } catch (error) {
-            toast.error('Ошибка при обновлении статуса', { position: "top-right" });
-        }
-    };
+    // const updateReportStatus = async (reportId, status) => {
+    //     try {
+    //         const statusId = status === 'В работе' ? 2 : status === 'Завершен' ? 3 : 1;
+    //
+    //         const response = await fetch(`${API_URL}/api/report/${reportId}/update`, {
+    //             method: 'PATCH',
+    //             headers: {
+    //                 'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
+    //                 'Content-Type': 'application/json',
+    //             },
+    //             body: JSON.stringify({
+    //                 status,
+    //                 status_id: statusId,
+    //                 processing_started: status === 'В работе' ? new Date().toISOString() : undefined
+    //             }),
+    //         });
+    //
+    //         if (!response.ok) throw new Error('Ошибка при обновлении статуса');
+    //
+    //         // Обновляем данные в состоянии
+    //         loadReports();
+    //
+    //         toast.success('Статус обновлен успешно', { position: "top-right" });
+    //     } catch (error) {
+    //         toast.error('Ошибка при обновлении статуса', { position: "top-right" });
+    //     }
+    // };
 
     const formatDateTime = (dateString) => {
         if (!dateString) return '—';
-        return new Date(dateString).toLocaleString('ru-RU');
+        try {
+            return new Date(dateString).toLocaleString('ru-RU');
+        } catch (error) {
+            return '—';
+        }
     };
+
 
     return (
         <div className={styles.processControl}>
@@ -264,10 +267,12 @@ const ProcessControl = () => {
                                 <span className={styles.detailValue}>{selectedReport?.creator}</span>
                             </div>
 
-                            <div className={styles.detailRow}>
-                                <span className={styles.detailLabel}>Дата загрузки:</span>
-                                <span className={styles.detailValue}>{formatDateTime(selectedReport?.created_at)}</span>
-                            </div>
+                            {selectedReport?.created_at && (
+                                <div className={styles.detailRow}>
+                                    <span className={styles.detailLabel}>Дата загрузки:</span>
+                                    <span className={styles.detailValue}>{formatDateTime(selectedReport?.created_at)}</span>
+                                </div>
+                            )}
 
                             {selectedReport?.processing_started && (
                                 <div className={styles.detailRow}>
