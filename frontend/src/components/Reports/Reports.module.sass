@@ -47,6 +47,30 @@
 
       th
         background-color: #f0f0f0
+        .status
+          padding: 4px 8px
+          border-radius: 8px
+          font-size: 14px
+          font-weight: 500
+          display: inline-block
+          text-transform: capitalize
+
+          &.завершен
+            background: #e3f7e8
+            color: #2e7d32
+          &.вработе
+            background: #fff3e0
+            color: #e65100
+          &.отменен
+            background: #ffebee
+            color: #c62828
+          &.загружен
+            background: #e3f2fd
+            color: #1565c0
+          &.новый
+            background: #e0e0e0
+            color: #333
+
         .sortIcon
           margin-left: 5px
           cursor: pointer
@@ -169,5 +193,3 @@
 
 .last_reports
   margin-top: 50px
-
-

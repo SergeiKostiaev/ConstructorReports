@@ -27,6 +27,7 @@ export const fetchReports = createAsyncThunk(
                     updated_at: report.updated_at,
                     creator: report.user?.name || 'Неизвестно',
                     category: report.category?.name || 'Загруженные отчеты',
+                    status: report.status?.name || 'Без статуса',
                 }));
             } else {
                 return rejectWithValue(data.message || 'Ошибка при получении отчётов');
@@ -210,8 +211,12 @@ const reportsSlice = createSlice({
         previewReport: null,
         newReportLoaded: false,
         reportsPerPage: 6,
+        selectedStatus: null,
     },
     reducers: {
+        setSelectedStatus: (state, action) => {
+            state.selectedStatus = action.payload;
+        },
         setSelectedUser: (state, action) => {
             state.selectedUser = action.payload;
         },
@@ -239,7 +244,7 @@ const reportsSlice = createSlice({
             state.previewReport = action.payload;
         },
         filterReports: (state) => {
-            const { reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users } = state;
+            const { reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users, selectedStatus } = state;
 
             state.filteredReports = reports.filter((report) => {
                 const matchesCategory =
@@ -248,16 +253,19 @@ const reportsSlice = createSlice({
                 const matchesUser =
                     selectedUser === null ||
                     report.creator === users.find((user) => user.id === selectedUser)?.name;
+                const matchesStatus =
+                    selectedStatus === null || report.status === selectedStatus;
                 const matchesSearch = [
                     report.name,
                     report.creator,
                     report.category || "",
+                    report.status || "", // добавлено
                 ].some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()));
 
                 if (selectedBasket) {
-                    return report.basket && matchesCategory && matchesUser && matchesSearch;
+                    return report.basket && matchesCategory && matchesUser && matchesStatus && matchesSearch;
                 } else {
-                    return !report.basket && matchesCategory && matchesUser && matchesSearch;
+                    return !report.basket && matchesCategory && matchesUser && matchesStatus && matchesSearch;
                 }
             });
         },
@@ -365,6 +373,7 @@ export const {
     setPreviewReport,
     filterReports,
     sortReports,
+    setSelectedStatus,
 } = reportsSlice.actions;
 
 export default reportsSlice.reducer;

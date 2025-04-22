@@ -207,6 +207,7 @@ const Reports = ({ onReportSelect }) => {
                         </th>
                         <th>Кто создал</th>
                         <th>Категория</th>
+                        <th>Статус</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -221,6 +222,11 @@ const Reports = ({ onReportSelect }) => {
                             <td>{report.updated_at}</td>
                             <td>{report.creator}</td>
                             <td>{report.category}</td>
+                            <td>
+                                <span className={`${styles.status} ${styles[report.status?.name?.toLowerCase().replace(/\s/g, '')]}`}>
+                                  {report.status || "—"}
+                                </span>
+                            </td>
                             <td className={styles.btn_icon}>
                                 {selectedBasket && (
                                     <img
