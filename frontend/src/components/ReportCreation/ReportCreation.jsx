@@ -503,7 +503,7 @@ const ReportCreation = ({ idReport }) => {
                 <input
                     type="text"
                     placeholder="Введите название отчета"
-                    value={name}
+                    value={name || ''}
                     onChange={(e) => setName(e.target.value)}
                 />
                 <select
@@ -520,7 +520,7 @@ const ReportCreation = ({ idReport }) => {
                 </select>
                 <select
                     className={styles.slctPart}
-                    value={selectedExtension}
+                    value={selectedExtension || ''}
                     onChange={(e) => setSelectedExtension(e.target.value)}
                 >
                     {dataExtensions.map((extension) => (
@@ -545,7 +545,7 @@ const ReportCreation = ({ idReport }) => {
                         <div key={column.name} className={styles.column}>
                             <select
                                 className={styles.slct_column}
-                                value={column.name}
+                                value={column.name || ''}
                                 onChange={(e) => handleColumnWhereChange(e.target.value, 'name')}
                             >
                                 {dataHeaders.map((header) => (
@@ -556,7 +556,7 @@ const ReportCreation = ({ idReport }) => {
                             </select>
                             <select
                                 className={styles.slct_column}
-                                value={column.where?.operator ?? ""}
+                                value={column.where?.operator || ''}
                                 onChange={(e) => handleColumnWhereChange(column.name, "operator", e.target.value, true)}
                             >
                                 {dataWhereColumns.map((where) => (
@@ -568,7 +568,7 @@ const ReportCreation = ({ idReport }) => {
                             <input
                                 type="text"
                                 className={styles.inpt_js}
-                                value={column.where?.value ?? ''}
+                                value={column.where?.value || ''}
                                 onChange={(e) => handleColumnWhereChange(column.name, "value", e.target.value, true)}
                                 placeholder="Значение"
                             />
@@ -606,20 +606,20 @@ const ReportCreation = ({ idReport }) => {
                             /> f(x)
                         </label>
                     </div>
-                    {column.type === "a" && column.name.indexOf('new_column_') === -1 && (
+                    {column.type === "a" && typeof column.name === "string" && !column.name.includes('new_column_') && (
                         <input
                             type="text"
                             className={styles.inpt_js}
-                            value={column.title}
+                            value={column.title || ''}
                             onChange={(e) => handleColumnChange(index, "title", e.target.value)}
                             placeholder="Введите заголовок"
                         />
                     )}
-                    {column.name.indexOf('new_column_') === 0 && (
+                    {column.name?.indexOf('new_column_') === 0 && (
                         <input
                             type="text"
                             className={styles.inpt_js}
-                            value={column.title}
+                            value={column.title || ''}
                             onChange={(e) => handleColumnChange(index, "title", e.target.value)}
                             placeholder="Введите заголовок"
                         />
