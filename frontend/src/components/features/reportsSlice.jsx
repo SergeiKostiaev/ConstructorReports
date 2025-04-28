@@ -16,6 +16,7 @@ export const fetchReports = createAsyncThunk(
             });
 
             const data = await response.json();
+            console.log('Raw data from server:', data);
 
             if (response.ok && data.success) {
                 return data.data.map((report) => ({
@@ -272,10 +273,20 @@ const reportsSlice = createSlice({
         sortReports: (state) => {
             const parseCustomDate = (dateString) => {
                 if (!dateString) return new Date(0);
-                const [datePart, timePart] = dateString.split(' в ');
-                const [day, month, year] = datePart.split('.');
-                const [hours, minutes] = timePart.split(':');
-                return new Date(year, month - 1, day, hours, minutes);
+
+                try {
+                    // Если дата в формате "dd.mm.yyyy в hh:mm"
+                    if (dateString.includes(' в ')) {
+                        const [datePart, timePart] = dateString.split(' в ');
+                        const [day, month, year] = datePart.split('.');
+                        const [hours, minutes] = timePart.split(':');
+                        return new Date(`${year}-${month}-${day}T${hours}:${minutes}`);
+                    }
+                    // Для ISO формата
+                    return new Date(dateString);
+                } catch (e) {
+                    return new Date(0);
+                }
             };
 
             if (state.sortByCreatedAt) {
@@ -291,6 +302,10 @@ const reportsSlice = createSlice({
                     return state.sortByUpdatedAt === 'asc' ? dateA - dateB : dateB - dateA;
                 });
             }
+        },
+        addNewReport: (state, action) => {
+            state.reports.unshift(action.payload); // Добавляем в начало списка
+            state.filteredReports.unshift(action.payload);
         },
     },
     extraReducers: (builder) => {
@@ -374,6 +389,7 @@ export const {
     filterReports,
     sortReports,
     setSelectedStatus,
+    addNewReport,
 } = reportsSlice.actions;
 
 export default reportsSlice.reducer;

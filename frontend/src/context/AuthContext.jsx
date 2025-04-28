@@ -16,27 +16,25 @@ export const AuthProvider = ({ children }) => {
         return storedUser ? JSON.parse(storedUser) : null;
     });
 
+    const [errorMessage, setErrorMessage] = useState('');
+
     const navigate = useNavigate();
 
     const login = async (email, password, companyId) => {
         try {
-            // Отправляем запрос на API для авторизации
             const response = await fetch(`${API_URL}/api/auth`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    company_id: companyId,
-                    email: email,
-                    password: password,
-                }),
+                body: JSON.stringify({ company_id: companyId, email, password }),
             });
 
             const data = await response.json();
 
             if (!response.ok || !data.success) {
-                throw new Error('Ошибка авторизации');
+                setErrorMessage('Неверные учетные данные или ошибка сервера');
+                return;
             }
 
             setIsAuthenticated(true);
@@ -48,7 +46,8 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('confirmed', data.data.user.confirmed);
             navigate('/home');
         } catch (error) {
-            alert('Неверные учетные данные или ошибка сервера');
+            console.error('Ошибка:', error);
+            setErrorMessage('Ошибка сети или сервера');
         }
     };
 
@@ -59,19 +58,15 @@ export const AuthProvider = ({ children }) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    company_id: companyId,
-                    name: name,
-                    email: email,
-                    password: password,
-                }),
+                body: JSON.stringify({ company_id: companyId, name, email, password }),
             });
 
             const data = await response.json();
 
             if (!response.ok || !data.success) {
                 const errorMessages = Object.values(data.data).flat().join(' ');
-                throw new Error(errorMessages || 'Ошибка регистрации');
+                setErrorMessage(errorMessages || 'Ошибка регистрации');
+                return;
             }
 
             setIsAuthenticated(true);
@@ -79,10 +74,12 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('isAuthenticated', JSON.stringify(true));
             navigate('/login');
         } catch (error) {
-            alert(error.message || 'Неверные учетные данные или ошибка сервера');
+            console.error('Ошибка:', error);
+            setErrorMessage('Ошибка сети или сервера');
         }
     };
 
+    // Функция выхода
     const logout = () => {
         setIsAuthenticated(false);
         setUser(null);
@@ -105,13 +102,22 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider
-            value={{ isAuthenticated, user, currentUser: user, register, login, logout }}
-        >
+            value={{
+                isAuthenticated,
+                user,
+                currentUser: user,
+                register,
+                login,
+                logout,
+                errorMessage,
+                clearError: () => setErrorMessage(''), // Метод очистки ошибки
+            }}>
             {children}
         </AuthContext.Provider>
     );
 };
 
+// Хук для удобного использования контекста
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {

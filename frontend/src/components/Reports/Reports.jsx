@@ -48,6 +48,35 @@ const Reports = ({ onReportSelect }) => {
         activeProcesses,
     } = useSelector((state) => state.reports);
 
+    const correctServerDate = (dateString) => {
+        if (!dateString || !dateString.includes(' в ')) return dateString || '—';
+
+        try {
+            // 1. Парсим дату с сервера (предполагаем UTC)
+            const [datePart, timePart] = dateString.split(' в ');
+            const [day, month, year] = datePart.split('.');
+            const [hours, minutes] = timePart.split(':');
+
+            // 2. Создаем Date объект в UTC
+            const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+
+            // 3. Корректируем на часовой пояс пользователя (MSK = UTC+3)
+            const mskOffset = 0 * 60 * 60 * 1000; // 3 часа в миллисекундах
+            const localDate = new Date(utcDate.getTime() + mskOffset);
+
+            // 4. Форматируем в нужный вид
+            const formattedDay = String(localDate.getDate()).padStart(2, '0');
+            const formattedMonth = String(localDate.getMonth() + 1).padStart(2, '0');
+            const formattedHours = String(localDate.getHours()).padStart(2, '0');
+            const formattedMinutes = String(localDate.getMinutes()).padStart(2, '0');
+
+            return `${formattedDay}.${formattedMonth}.${localDate.getFullYear()} в ${formattedHours}:${formattedMinutes}`;
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return dateString || '—';
+        }
+    };
+
     useEffect(() => {
         dispatch(fetchCategories());
         dispatch(fetchUsers());
@@ -158,6 +187,7 @@ const Reports = ({ onReportSelect }) => {
         <div className={styles.container}>
             {loading && <div>Загрузка...</div>}
             <div className={styles.container__btn}>
+
                 <select className={styles.container__btn_item} onChange={handleUserChange} value={selectedUser || 0}>
                     <option value="0">Выбор сотрудника</option>
                     {users.map((user) => (
@@ -196,13 +226,13 @@ const Reports = ({ onReportSelect }) => {
                         <th onClick={handleSortByCreatedAt} style={{cursor: 'pointer'}}>
                             Дата создания
                             <span className={styles.sortIcon}>
-                              {sortByCreatedAt === 'asc' ? '↑' : '↓'}
+                              {sortByCreatedAt === 'asc' ? '↑ От старого к новому' : '↓ От нового к старому'}
                             </span>
                         </th>
                         <th onClick={handleSortByUpdatedAt} style={{cursor: 'pointer'}}>
                             Дата изменения
                             <span className={styles.sortIcon}>
-                              {sortByUpdatedAt === 'asc' ? '↑' : '↓'}
+                              {sortByUpdatedAt === 'asc' ? '↑ От старого к новому' : '↓ От нового к старому'}
                             </span>
                         </th>
                         <th>Кто создал</th>
@@ -218,8 +248,8 @@ const Reports = ({ onReportSelect }) => {
                             style={{ cursor: 'pointer' }}
                         >
                             <td>{report.name}</td>
-                            <td>{report.created_at}</td>
-                            <td>{report.updated_at}</td>
+                            <td>{correctServerDate(report.created_at)}</td>
+                            <td>{correctServerDate(report.updated_at)}</td>
                             <td>{report.creator}</td>
                             <td>{report.category}</td>
                             <td>
@@ -233,6 +263,7 @@ const Reports = ({ onReportSelect }) => {
                                         src={ref50}
                                         width="24"
                                         alt="Восстановить"
+                                        title="Восстановление отчета"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleRevertBasket(report.id);
@@ -242,6 +273,7 @@ const Reports = ({ onReportSelect }) => {
                                 <img
                                     src={edit}
                                     alt="Редактировать"
+                                    title="Редактирование отчета"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onReportSelect(report.id);
@@ -250,6 +282,7 @@ const Reports = ({ onReportSelect }) => {
                                 <img
                                     src={download}
                                     alt="Экспорт"
+                                    title="Экспорт отчета"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleExportReport(report, report.extension);
@@ -260,6 +293,7 @@ const Reports = ({ onReportSelect }) => {
                                     <img
                                         src={del}
                                         alt="Удалить"
+                                        title="Удаление отчета"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteReport(report.id, false);
@@ -271,6 +305,7 @@ const Reports = ({ onReportSelect }) => {
                                     <img
                                         src={del}
                                         alt="Удалить навсегда"
+                                        title="Удаление отчета (безвозвратно)"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteReport(report.id, true);

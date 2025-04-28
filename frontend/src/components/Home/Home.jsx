@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // Добавьте useEffect
+import React, { useState, useEffect } from 'react';
 import styles from './Home.module.sass';
 import { useAuth } from "../../context/AuthContext";
 import AccessControl from "../AccessControl/AccessControl.jsx";
@@ -11,42 +11,18 @@ import Analytics from "../Analytics/Analytics.jsx";
 import { FaUserCircle } from "react-icons/fa";
 import * as XLSX from 'xlsx';
 import ProcessControl from "../ProcessControl/ProcessControl.jsx";
-import {useSelector} from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { addNewReport, fetchReports } from '../features/reportsSlice';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const Home = () => {
     const { logout } = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
-    const [reports, setReports] = useState([]);
+    const dispatch = useDispatch();
     const activeReports = useSelector(state => state.reports.activeProcesses);
 
-
-    const fetchReports = async () => {
-        try {
-            const response = await fetch(`${API_URL}/api/report/list`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-                    'Content-Type': 'application/json',
-                }
-            });
-
-            if (!response.ok) throw new Error('Ошибка при получении отчетов');
-
-            const data = await response.json();
-            console.log('Fetched reports:', data);
-            setReports(Array.isArray(data) ? data : []); // обновляем список отчетов
-        } catch (error) {
-            toast.error("Ошибка загрузки отчетов", { position: "top-right" });
-        }
-    };
-
-    useEffect(() => {
-        fetchReports();
-    }, []);
-
-    // Загружаем сохранённую вкладку из localStorage при инициализации
+    // Загружаем сохранённую вкладку из localStorage
     const [active, setActive] = useState(() => {
         const savedTab = localStorage.getItem('activeTab');
         return savedTab !== null ? Number(savedTab) : 0;
@@ -56,12 +32,12 @@ const Home = () => {
         const savedReportId = localStorage.getItem('selectedReportId');
         return savedReportId !== null ? Number(savedReportId) : null;
     });
+
     const userRole = Number(localStorage.getItem('role'));
-    const isConfirmed =
-        userRole === 2 ||
-        userRole === 3 ||
+    const isConfirmed = userRole === 2 || userRole === 3 ||
         (userRole === 1 && localStorage.getItem('confirmed') === 'true');
 
+    // Сохраняем выбранный отчет в localStorage
     useEffect(() => {
         if (selectedReportId !== null) {
             localStorage.setItem('selectedReportId', selectedReportId.toString());
@@ -70,29 +46,22 @@ const Home = () => {
         }
     }, [selectedReportId]);
 
-    // Сохраняем активную вкладку в localStorage при её изменении
+    // Сохраняем активную вкладку в localStorage
     useEffect(() => {
         localStorage.setItem('activeTab', active.toString());
-        if (selectedReportId !== null) {
-            localStorage.setItem('selectedReportId', selectedReportId.toString());
-        } else {
-            localStorage.removeItem('selectedReportId');
-        }
-    }, [active, selectedReportId]);
+    }, [active]);
 
     const onReportSelect = (id) => {
         setSelectedReportId(id);
         setActive(1);
     };
 
-
-
     const items = isConfirmed ? [
         {
             title: 'Отчеты',
             content: (
                 <DataContainer title="Отчеты">
-                    <Reports onReportSelect={onReportSelect} fetchReports={fetchReports} />
+                    <Reports onReportSelect={onReportSelect} />
                 </DataContainer>
             ),
         },
@@ -144,129 +113,56 @@ const Home = () => {
         const bearerToken = localStorage.getItem("api_token");
 
         if (!bearerToken) {
-            toast.error("Ошибка: отсутствует токен авторизации", { position: "top-right" });
+            toast.error("Ошибка: отсутствует токен авторизации");
             return;
         }
 
         if (!e.target.files || e.target.files.length === 0) {
-            toast.warn("Файл не выбран", { position: "top-right" });
+            toast.warn("Файл не выбран");
             return;
         }
 
         const file = e.target.files[0];
+        const fileName = file.name.split('.')[0];
         const fileType = file.name.split('.').pop().toLowerCase();
-        console.log("Загружаемый файл:", file);
-        console.log("Тип файла:", fileType);
 
-        if (fileType === 'json') {
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                try {
-                    const jsonData = JSON.parse(event.target.result);
-                    const formData = new FormData();
-                    formData.append("file", new Blob([JSON.stringify(jsonData)], { type: 'application/json' }), file.name);
+        // Оптимистичное добавление отчета
+        const tempReport = {
+            id: Date.now(), // Временный ID
+            name: fileName,
+            created_at: new Date().toLocaleString('ru-RU'),
+            updated_at: new Date().toLocaleString('ru-RU'),
+            creator: localStorage.getItem('name') || 'Вы',
+            status: 'Загружается...',
+            isTemp: true
+        };
 
-                    const response = await fetch(`${API_URL}/api/report/import`, {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${bearerToken}` },
-                        body: formData,
-                    });
+        dispatch(addNewReport(tempReport));
 
-                    const responseText = await response.text();
-                    try {
-                        const result = JSON.parse(responseText);
-                        console.log("Результат от сервера:", result);
-                        if (result.success) {
-                            toast.success("Отчет успешно импортирован", { position: "top-right" });
-                            fetchReports();
-                        } else {
-                            toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
-                        }
-                    } catch (err) {
-                        console.error("Не удалось разобрать JSON. Сервер вернул:", responseText);
-                        toast.error("Сервер вернул неожиданный ответ (возможно, HTML)", { position: "top-right" });
-                    }
-                } catch (error) {
-                    console.error("Ошибка при обработке JSON:", error);
-                    toast.error("Ошибка при обработке JSON файла", { position: "top-right" });
-                }
-            };
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
 
-            reader.readAsText(file);
-        } else if (['xls', 'xlsx', 'ods', 'csv'].includes(fileType)) {
-            try {
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    try {
-                        const workbook = XLSX.read(event.target.result, { type: 'binary' });
-                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true });
+            const response = await fetch(`${API_URL}/api/report/import`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${bearerToken}` },
+                body: formData,
+            });
 
-                        // Преобразуем числовые даты в строки
-                        jsonData.forEach(row => {
-                            Object.entries(row).forEach(([key, value]) => {
-                                if (typeof value === 'number' && value > 30000 && value < 60000) {
-                                    const parsedDate = XLSX.SSF.parse_date_code(value);
-                                    if (parsedDate) {
-                                        const day = String(parsedDate.d).padStart(2, '0');
-                                        const month = String(parsedDate.m).padStart(2, '0');
-                                        const year = String(parsedDate.y);
-                                        row[key] = `${day}.${month}.${year}`;
-                                    }
-                                }
-                            });
-                        });
+            const result = await response.json();
 
-                        // Перезапишем worksheet
-                        const newWorksheet = XLSX.utils.json_to_sheet(jsonData);
-                        const newWorkbook = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, workbook.SheetNames[0]);
-
-                        // Создаем Blob из workbook
-                        const wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
-                        const modifiedFile = new Blob([wbout], { type: file.type });
-
-                        const formData = new FormData();
-                        formData.append("file", new File([modifiedFile], file.name, { type: file.type }));
-
-                        const response = await fetch(`${API_URL}/api/report/import`, {
-                            method: 'POST',
-                            headers: { Authorization: `Bearer ${bearerToken}` },
-                            body: formData,
-                        });
-
-                        const responseText = await response.text();
-                        try {
-                            const result = JSON.parse(responseText);
-                            console.log("Результат от сервера (XLSX/ODS/CSV):", result);
-
-                            if (result.success) {
-                                toast.success("Отчет успешно импортирован", { position: "top-right" });
-                                fetchReports();
-                            } else {
-                                toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
-                            }
-                        } catch (err) {
-                            console.error("Сервер вернул не JSON:", responseText);
-                            toast.error("Сервер вернул неожиданный ответ", { position: "top-right" });
-                        }
-                    } catch (error) {
-                        console.error("Ошибка при отправке файла:", error);
-                        toast.error("Ошибка при отправке Excel/ODS файла", { position: "top-right" });
-                    }
-                };
-
-                reader.readAsBinaryString(file);
-            } catch (error) {
-                console.error("Ошибка при чтении Excel файла:", error);
-                toast.error("Ошибка при обработке Excel/ODS/CSV файла", { position: "top-right" });
+            if (response.ok && result.success) {
+                toast.success("Отчет успешно загружен");
+                // Обновляем список отчетов
+                dispatch(fetchReports());
+            } else {
+                toast.error(result.message || "Ошибка при загрузке отчета");
             }
-        } else {
-            toast.warn("Формат файла не поддерживается", { position: "top-right" });
+        } catch (error) {
+            toast.error("Ошибка при отправке файла");
+            console.error("Ошибка загрузки:", error);
         }
     };
-
-
 
     return (
         <div className={styles.container}>
@@ -276,7 +172,7 @@ const Home = () => {
                         <h1>Конструктор отчетов</h1>
                         {isConfirmed && (
                             <div className={styles.header__itemBtn} style={{ position: 'relative' }}>
-                                <p>Выбрать отчет из системы</p>
+                                <p>Импортировать отчет</p>
                                 <input
                                     type="file"
                                     style={{ position: 'absolute', width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
@@ -286,7 +182,11 @@ const Home = () => {
                             </div>
                         )}
                     </div>
-                    <div className={styles.avatarContainer} onMouseEnter={() => setMenuOpen(true)} onMouseLeave={() => setMenuOpen(false)}>
+                    <div
+                        className={styles.avatarContainer}
+                        onMouseEnter={() => setMenuOpen(true)}
+                        onMouseLeave={() => setMenuOpen(false)}
+                    >
                         <p className={styles.userName}>{localStorage.getItem('name') || 'Гость'}</p>
                         <FaUserCircle className={styles.defaultAvatar} size={40} />
 
@@ -298,7 +198,6 @@ const Home = () => {
                             </div>
                         )}
                     </div>
-
                 </div>
 
                 <div className={styles.tabs}>
@@ -314,9 +213,12 @@ const Home = () => {
                             </button>
                         ))
                     ) : (
-                        <p className={styles.error_user}>Ваш профиль еще не подтвержден, <br /> зайдите позже!</p>
+                        <p className={styles.error_user}>
+                            Ваш профиль еще не подтвержден, <br /> зайдите позже!
+                        </p>
                     )}
                 </div>
+
                 {isConfirmed && <div className={styles.tabContent}>{items[active]?.content}</div>}
             </div>
         </div>

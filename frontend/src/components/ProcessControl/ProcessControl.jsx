@@ -14,6 +14,34 @@ const ProcessControl = () => {
     const [selectedReport, setSelectedReport] = useState(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
 
+    const correctServerTime = (dateString) => {
+        if (!dateString || !dateString.includes(' в ')) return dateString || '—';
+
+        try {
+            // Парсим дату с сервера (предполагаем UTC+3)
+            const [datePart, timePart] = dateString.split(' в ');
+            const [day, month, year] = datePart.split('.');
+            const [hours, minutes] = timePart.split(':');
+
+            const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+
+            // 3. Корректируем на часовой пояс пользователя (MSK = UTC+3)
+            const mskOffset = 0 * 60 * 60 * 1000; // 3 часа в миллисекундах
+            const localDate = new Date(utcDate.getTime() + mskOffset);
+
+            // 4. Форматируем в нужный вид
+            const formattedDay = String(localDate.getDate()).padStart(2, '0');
+            const formattedMonth = String(localDate.getMonth() + 1).padStart(2, '0');
+            const formattedHours = String(localDate.getHours()).padStart(2, '0');
+            const formattedMinutes = String(localDate.getMinutes()).padStart(2, '0');
+
+            return `${formattedDay}.${formattedMonth}.${localDate.getFullYear()} в ${formattedHours}:${formattedMinutes}`;
+        } catch (e) {
+            console.error('Error correcting server time:', e);
+            return dateString || '—';
+        }
+    };
+
     const mapReportStatus = (report) => {
         if (report.status_id === 3) return 'Завершен';
         if (report.status_id === 2) return 'В работе';
@@ -44,27 +72,49 @@ const ProcessControl = () => {
                     id: report.id,
                     name: report.name || `Отчет #${report.id}`,
                     creator: report.user?.name || 'Неизвестно',
-                    startedAt: report.created_at?.split('T')[0] || '—',
-                    progress: report.status_id === 3 ? 100 : 50, // Примерное значение прогресса
-                    status_id: report.status_id
+                    startedAt: report.created_at || '—', // Используем исходный формат
+                    progress: report.status_id === 3 ? 100 : 50,
+                    status_id: report.status_id,
+                    created_at: report.created_at, // Сохраняем оригинальные значения
+                    updated_at: report.updated_at,
+                    processing_started: report.processing_started,
+                    completed_at: report.completed_at
                 }));
             setActiveProcesses(active);
 
             // Последние 5 отчетов
             const latestReports = reports
-                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .sort((a, b) => {
+                    const dateA = parseCustomDate(a.created_at);
+                    const dateB = parseCustomDate(b.created_at);
+                    return dateB - dateA;
+                })
                 .slice(0, 5)
                 .map(report => ({
                     id: report.id,
                     name: report.name || `Отчет #${report.id}`,
-                    date: report.created_at?.split('T')[0] || '—',
+                    date: formatDateTime(report.created_at), // Форматируем дату
                     status: mapReportStatus(report),
                     status_id: report.status_id,
                     created_at: report.created_at,
                     updated_at: report.updated_at,
                     processing_started: report.processing_started,
                     completed_at: report.completed_at,
-                    creator: report.user?.name || 'Неизвестно'
+                    creator: report.user?.name || 'Неизвестно',
+                    extension: report.extension,
+                    category_id: report.category_id,
+                    category_name: (() => {
+                        switch(report.category_id) {
+                            case null:
+                                return 'Загруженные отчеты';
+                            case 1:
+                                return 'Отчеты по проектам';
+                            case 2:
+                                return 'Отчеты по задачам';
+                            default:
+                                return 'Неизвестная категория';
+                        }
+                    })()
                 }));
 
             setRecentFiles(latestReports);
@@ -76,6 +126,24 @@ const ProcessControl = () => {
     useEffect(() => {
         loadReports();
     }, []);
+
+    const parseCustomDate = (dateString) => {
+        if (!dateString) return new Date(0);
+        try {
+            const [datePart, timePart] = dateString.split(' в ');
+            const [day, month, year] = datePart.split('.');
+            const [hours, minutes] = timePart.split(':');
+
+            // Создаем дату в UTC+0 (без учета локального времени)
+            const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+
+            // Корректируем на часовой пояс пользователя
+            const userTimezoneOffset = new Date().getTimezoneOffset() * 60000;
+            return new Date(utcDate.getTime() + userTimezoneOffset);
+        } catch (e) {
+            return new Date(0);
+        }
+    };
 
     const handleCompleteProcess = async (processId) => {
         try {
@@ -118,38 +186,27 @@ const ProcessControl = () => {
         setShowDetailsModal(true);
     };
 
-    // const updateReportStatus = async (reportId, status) => {
-    //     try {
-    //         const statusId = status === 'В работе' ? 2 : status === 'Завершен' ? 3 : 1;
-    //
-    //         const response = await fetch(`${API_URL}/api/report/${reportId}/update`, {
-    //             method: 'PATCH',
-    //             headers: {
-    //                 'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
-    //                 'Content-Type': 'application/json',
-    //             },
-    //             body: JSON.stringify({
-    //                 status,
-    //                 status_id: statusId,
-    //                 processing_started: status === 'В работе' ? new Date().toISOString() : undefined
-    //             }),
-    //         });
-    //
-    //         if (!response.ok) throw new Error('Ошибка при обновлении статуса');
-    //
-    //         // Обновляем данные в состоянии
-    //         loadReports();
-    //
-    //         toast.success('Статус обновлен успешно', { position: "top-right" });
-    //     } catch (error) {
-    //         toast.error('Ошибка при обновлении статуса', { position: "top-right" });
-    //     }
-    // };
-
     const formatDateTime = (dateString) => {
         if (!dateString) return '—';
+
+        // Если дата уже в нужном формате
+        if (dateString.includes(' в ')) {
+            return dateString;
+        }
+
         try {
-            return new Date(dateString).toLocaleString('ru-RU');
+            // Для ISO строк корректируем часовой пояс
+            const date = new Date(dateString);
+            const timezoneOffset = date.getTimezoneOffset() * 60000;
+            const adjustedDate = new Date(date.getTime() - timezoneOffset);
+
+            return adjustedDate.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).replace(',', ' в ');
         } catch (error) {
             return '—';
         }
@@ -267,24 +324,38 @@ const ProcessControl = () => {
                                 <span className={styles.detailValue}>{selectedReport?.creator}</span>
                             </div>
 
+                            <div className={styles.detailRow}>
+                                <span className={styles.detailLabel}>Формат:</span>
+                                <span className={styles.detailValue}>
+                                    {selectedReport.extension?.toUpperCase() || 'Не указан'}
+                                </span>
+                            </div>
+
+                            <div className={styles.detailRow}>
+                                <span className={styles.detailLabel}>Категория:</span>
+                                <span className={styles.detailValue}>
+                                    {selectedReport?.category_name || 'Не указана'}
+                                </span>
+                            </div>
+
                             {selectedReport?.created_at && (
                                 <div className={styles.detailRow}>
                                     <span className={styles.detailLabel}>Дата загрузки:</span>
-                                    <span className={styles.detailValue}>{formatDateTime(selectedReport?.created_at)}</span>
+                                    <span className={styles.detailValue}>{correctServerTime(selectedReport?.created_at)}</span>
                                 </div>
                             )}
 
                             {selectedReport?.processing_started && (
                                 <div className={styles.detailRow}>
                                     <span className={styles.detailLabel}>Начало обработки:</span>
-                                    <span className={styles.detailValue}>{formatDateTime(selectedReport.processing_started)}</span>
+                                    <span className={styles.detailValue}>{correctServerTime(selectedReport.processing_started)}</span>
                                 </div>
                             )}
 
                             {selectedReport?.completed_at && (
                                 <div className={styles.detailRow}>
                                     <span className={styles.detailLabel}>Завершено:</span>
-                                    <span className={styles.detailValue}>{formatDateTime(selectedReport.completed_at)}</span>
+                                    <span className={styles.detailValue}>{correctServerTime(selectedReport.completed_at)}</span>
                                 </div>
                             )}
 

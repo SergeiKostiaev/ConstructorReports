@@ -1,47 +1,40 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import React from "react";
-import styles from './AuthForm.module.sass';
+import styles from './AuthForm.module.css';
 
 const AuthForm = ({ isRegister }) => {
-    const { login, register } = useAuth();
+    const authContext = useAuth();
+    const { login, register, errorMessage } = authContext;
+
     const [companyId, setCompanyId] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [name, setName] = useState(''); // поле для регистрации
-    const [error, setError] = useState(null);
+    const [name, setName] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        let validationPassed = true;
+
         if (!isRegister) {
-            if (email.trim() && password.trim() && companyId.trim()) {
-                try {
-                    await login(email, password, companyId);
-                } catch (error) {
-                    console.error('Ошибка при авторизации:', error);
-                    setError('Ошибка авторизации. Пожалуйста, попробуйте снова.');
-                }
-            } else {
-                alert('Пожалуйста, заполните все поля');
+            if (!email.trim() || !password.trim() || !companyId.trim()) {
+                validationPassed = false;
             }
         } else {
-            if (email.trim() && password.trim() && companyId.trim() && name.trim()) {
-                try {
+            if (!email.trim() || !password.trim() || !companyId.trim() || !name.trim()) {
+                validationPassed = false;
+            }
+        }
+
+        if (validationPassed) {
+            try {
+                if (!isRegister) {
+                    await login(email, password, companyId);
+                } else {
                     await register(name, email, password, companyId);
-                } catch (error) {
-                    console.error('Ошибка при регистрации:', error);
-                    if (error.response && error.response.data) {
-                        const serverErrors = Object.values(error.response.data)
-                            .flat()
-                            .join(' ');
-                        setError(serverErrors);
-                    } else {
-                        setError('Ошибка регистрации. Пожалуйста, попробуйте снова.');
-                    }
                 }
-            } else {
-                alert('Пожалуйста, заполните все поля');
+            } catch (err) {
+
             }
         }
     };
@@ -52,7 +45,6 @@ const AuthForm = ({ isRegister }) => {
                 <h2 className={styles.authFormTitle}>
                     {isRegister ? 'Регистрация' : 'Авторизация'}
                 </h2>
-                {error && <p className={styles.error}>{error}</p>}
                 <div className={styles.formGroup}>
                     <label className={styles.formLabel}>ID компании:</label>
                     <input
@@ -60,7 +52,7 @@ const AuthForm = ({ isRegister }) => {
                         value={companyId}
                         onChange={(e) => setCompanyId(e.target.value)}
                         required
-                        className={styles.formInput}
+                        className={`${styles.formInput} ${errorMessage ? styles.inputError : ''}`}
                         placeholder="Введите ID компании"
                     />
                 </div>
@@ -72,8 +64,8 @@ const AuthForm = ({ isRegister }) => {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
-                            className={styles.formInput}
-                            placeholder="Введите ваше ФИО"
+                            className={`${styles.formInput} ${errorMessage ? styles.inputError : ''}`}
+                            placeholder="Введите ваши имя и фамилию"
                         />
                     </div>
                 )}
@@ -84,8 +76,8 @@ const AuthForm = ({ isRegister }) => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        className={styles.formInput}
-                        placeholder="Введите вашу почту"
+                        className={`${styles.formInput} ${errorMessage ? styles.inputError : ''}`}
+                        placeholder="Введите электронную почту"
                     />
                 </div>
                 <div className={styles.formGroup}>
@@ -95,21 +87,27 @@ const AuthForm = ({ isRegister }) => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        className={styles.formInput}
+                        className={`${styles.formInput} ${errorMessage ? styles.inputError : ''}`}
                         placeholder="Введите пароль"
                     />
                 </div>
+                {errorMessage && <p style={{
+                    color: 'red',
+                    margin: '2px 0  10px 0',
+                }}>{errorMessage}</p>}
                 <button type="submit" className={styles.btn_enter}>
                     {isRegister ? 'Зарегистрироваться' : 'Войти'}
                 </button>
                 <div className={styles.switchAuthText}>
                     {isRegister ? (
                         <p>
-                            Есть аккаунт? <a href="/login">Войти</a>
+                            Уже зарегистрированы?{' '}
+                            <a href="/login">Вход</a>
                         </p>
                     ) : (
                         <p>
-                            Нет аккаунта? <a href="/register">Зарегистрироваться</a>
+                            Еще нет аккаунта?{' '}
+                            <a href="/register">Регистрация</a>
                         </p>
                     )}
                 </div>
