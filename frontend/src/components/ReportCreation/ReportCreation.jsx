@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, {useState, useEffect, useCallback} from "react";
 import styles from "./ReportCreation.module.sass";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -518,11 +518,33 @@ const ReportCreation = ({ idReport }) => {
     const handleDragEnd = (result) => {
         if (!result.destination) return;
 
-        const items = Array.from(customWhereColumns);
-        const [reorderedItem] = items.splice(result.source.index, 1);
-        items.splice(result.destination.index, 0, reorderedItem);
+        const sourceIndex = result.source.index;
+        const destinationIndex = result.destination.index;
 
-        setCustomWhereColumns(items);
+        // Если позиция не изменилась, ничего не делаем
+        if (sourceIndex === destinationIndex) return;
+
+        // 1. Обновляем порядок столбцов
+        const newColumns = [...customWhereColumns];
+        const [movedColumn] = newColumns.splice(sourceIndex, 1);
+        newColumns.splice(destinationIndex, 0, movedColumn);
+
+        // 2. Обновляем данные в отчетах, меняя местами соответствующие столбцы
+        const swapColumnsInData = (data) => {
+            if (!data || data.length === 0) return data;
+            return data.map(row => {
+                if (!row || row.length <= Math.max(sourceIndex, destinationIndex)) return row;
+                const newRow = [...row];
+                const temp = newRow[sourceIndex];
+                newRow[sourceIndex] = newRow[destinationIndex];
+                newRow[destinationIndex] = temp;
+                return newRow;
+            });
+        };
+
+        setCustomWhereColumns(newColumns);
+        setDataReport(prev => swapColumnsInData(prev));
+        setNewDataReport(prev => swapColumnsInData(prev));
     };
 
     if (reportNotFound || !currentReportId) {
