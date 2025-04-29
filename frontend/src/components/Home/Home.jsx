@@ -3,14 +3,17 @@ import styles from './Home.module.sass';
 import { useAuth } from "../../context/AuthContext";
 import AccessControl from "../AccessControl/AccessControl.jsx";
 import { toast } from "react-toastify";
+
 import "react-toastify/dist/ReactToastify.css";
+
 import DataContainer from "../DataContainer/DataContainer.jsx";
 import Reports from "../Reports/Reports.jsx";
 import ReportCreation from "../ReportCreation/ReportCreation.jsx";
 import Analytics from "../Analytics/Analytics.jsx";
 import { FaUserCircle } from "react-icons/fa";
-import * as XLSX from 'xlsx';
 import ProcessControl from "../ProcessControl/ProcessControl.jsx";
+import * as XLSX from 'xlsx';
+
 import { useSelector, useDispatch } from "react-redux";
 import { addNewReport, fetchReports } from '../features/reportsSlice';
 
@@ -45,7 +48,6 @@ const Home = () => {
             localStorage.removeItem('selectedReportId');
         }
     }, [selectedReportId]);
-
     // Сохраняем активную вкладку в localStorage
     useEffect(() => {
         localStorage.setItem('activeTab', active.toString());
@@ -128,7 +130,7 @@ const Home = () => {
 
         // Оптимистичное добавление отчета
         const tempReport = {
-            id: Date.now(), // Временный ID
+            id: Date.now(),
             name: fileName,
             created_at: new Date().toLocaleString('ru-RU'),
             updated_at: new Date().toLocaleString('ru-RU'),
@@ -140,12 +142,93 @@ const Home = () => {
         dispatch(addNewReport(tempReport));
 
         try {
-            const formData = new FormData();
-            formData.append("file", file);
+            // Для Excel и OpenDocument файлов (XLSX/XLS/ODS)
+            if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'ods') {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const workbook = XLSX.read(event.target.result, { type: 'binary' });
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true });
 
+                        // Преобразуем числовые даты в строки
+                        jsonData.forEach(row => {
+                            Object.entries(row).forEach(([key, value]) => {
+                                // Проверяем только колонки с "дата" в названии
+                                if (key.toLowerCase().includes('дата') && typeof value === 'number' && value > 0) {
+                                    const parsedDate = XLSX.SSF.parse_date_code(value);
+                                    if (parsedDate) {
+                                        const day = String(parsedDate.d).padStart(2, '0');
+                                        const month = String(parsedDate.m).padStart(2, '0');
+                                        const year = String(parsedDate.y);
+                                        row[key] = `${day}.${month}.${year}`;
+                                    }
+                                }
+                            });
+                        });
+
+                        // Перезапишем worksheet
+                        const newWorksheet = XLSX.utils.json_to_sheet(jsonData);
+                        const newWorkbook = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, workbook.SheetNames[0]);
+
+                        // Определяем тип файла для сохранения
+                        const bookType = fileType === 'ods' ? 'ods' : 'xlsx';
+
+                        // Создаем Blob из workbook
+                        const wbout = XLSX.write(newWorkbook, { bookType, type: 'array' });
+                        const modifiedFile = new Blob([wbout], { type: file.type });
+
+                        const formData = new FormData();
+                        formData.append("file", new File([modifiedFile], file.name, { type: file.type }));
+
+                        const response = await fetch(`${API_URL}/api/report/import`, {
+                            method: 'POST',
+                            headers: { Authorization: `Bearer ${bearerToken}` },
+                            body: formData,
+                        });
+
+                        const responseText = await response.text();
+                        try {
+                            const result = JSON.parse(responseText);
+                            console.log("Результат от сервера (XLSX/ODS/CSV):", result);
+
+                            if (result.success) {
+                                toast.success("Отчет успешно импортирован", { position: "top-right" });
+                                dispatch(fetchReports());
+                            } else {
+                                toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
+                            }
+                        } catch (err) {
+                            console.error("Сервер вернул не JSON:", responseText);
+                            toast.error("Сервер вернул неожиданный ответ", { position: "top-right" });
+                        }
+                    } catch (error) {
+                        console.error("Ошибка при отправке файла:", error);
+                        toast.error(`Ошибка при отправке ${fileType.toUpperCase()} файла`, { position: "top-right" });
+                    }
+                };
+                reader.readAsBinaryString(file);
+            } else {
+                // Для CSV/JSON файлов загружаем как есть
+                const formData = new FormData();
+                formData.append("file", file);
+                await uploadFile(formData, bearerToken);
+            }
+        } catch (error) {
+            console.error("Ошибка загрузки:", error);
+            toast.error("Ошибка при отправке файла");
+        }
+    };
+
+    // Вспомогательная функция для загрузки файла
+    const uploadFile = async (formData, bearerToken) => {
+        try {
             const response = await fetch(`${API_URL}/api/report/import`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${bearerToken}` },
+                headers: {
+                    'Authorization': `Bearer ${bearerToken}`,
+                },
                 body: formData,
             });
 
@@ -153,14 +236,14 @@ const Home = () => {
 
             if (response.ok && result.success) {
                 toast.success("Отчет успешно загружен");
-                // Обновляем список отчетов
                 dispatch(fetchReports());
             } else {
                 toast.error(result.message || "Ошибка при загрузке отчета");
+                throw new Error(result.message || "Ошибка при загрузке отчета");
             }
         } catch (error) {
-            toast.error("Ошибка при отправке файла");
             console.error("Ошибка загрузки:", error);
+            throw error;
         }
     };
 
@@ -203,11 +286,10 @@ const Home = () => {
                 <div className={styles.tabs}>
                     {isConfirmed ? (
                         items.map((n, i) => (
-                            <button
-                                key={i}
-                                className={`${styles.tablinks} ${i === active ? styles.active : ''}`}
-                                onClick={openTab}
-                                data-index={i}
+                            <button key={i}
+                                    className={`${styles.tablinks} ${i === active ? styles.active : ''}`}
+                                    onClick={openTab}
+                                    data-index={i}
                             >
                                 {n.title}
                             </button>

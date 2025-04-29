@@ -6,6 +6,7 @@ import { Parser } from 'expr-eval';
 // import { addActiveProcess, setReportStatus } from '../features/reportsSlice.jsx';
 
 import screp from '../../assets/screp.svg';
+import {DragDropContext, Draggable, Droppable} from "react-beautiful-dnd";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -514,6 +515,15 @@ const ReportCreation = ({ idReport }) => {
                 }
             });
     };
+    const handleDragEnd = (result) => {
+        if (!result.destination) return;
+
+        const items = Array.from(customWhereColumns);
+        const [reorderedItem] = items.splice(result.source.index, 1);
+        items.splice(result.destination.index, 0, reorderedItem);
+
+        setCustomWhereColumns(items);
+    };
 
     if (reportNotFound || !currentReportId) {
         return (
@@ -563,7 +573,7 @@ const ReportCreation = ({ idReport }) => {
             <div className={styles.box3}>
                 <div className={styles.box__title}>
                     <img src={screp} alt="screp" />
-                    <label>Добавить условие для столбца:</label>
+                    <label>Добавить условие для отчета:</label>
                     <span className={styles.addColumnBtn} onClick={handleAddWhereColumn}>+</span>
                 </div>
             </div>
@@ -605,7 +615,7 @@ const ReportCreation = ({ idReport }) => {
                     )
             )}
 
-            <div>
+            <div className={styles.box3}>
                 <div className={styles.box__title}>
                     <img src={screp} alt="screp" />
                     <label>Настройка столбцов:</label>
@@ -613,61 +623,80 @@ const ReportCreation = ({ idReport }) => {
                 </div>
             </div>
 
-            {customWhereColumns.map((column, index) => (
-                <div key={index} className={styles.column}>
-                    <span>{index + 1}.</span>
-                    <div className={styles.radioGroup}>
-                        <label>
-                            <input
-                                type="radio"
-                                value="a"
-                                checked={column.type === "a"}
-                                onChange={() => handleColumnChange(index, "type", "a")}
-                            /> a
-                        </label>
-                        <label>
-                            <input
-                                type="radio"
-                                value="fx"
-                                checked={column.type === "fx"}
-                                onChange={() => handleColumnChange(index, "type", "fx")}
-                            /> f(x)
-                        </label>
-                    </div>
-                    {column.type === "a" && typeof column.name === "string" && !column.name.includes('new_column_') && (
-                        <input
-                            type="text"
-                            className={styles.inpt_js}
-                            value={column.title || ''}
-                            onChange={(e) => handleColumnChange(index, "title", e.target.value)}
-                            placeholder="Введите заголовок"
-                        />
+            <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="columns">
+                    {(provided) => (
+                        <div {...provided.droppableProps} ref={provided.innerRef}>
+                            {customWhereColumns.map((column, index) => (
+                                <Draggable key={column.name} draggableId={column.name} index={index}>
+                                    {(provided) => (
+                                        <div
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            {...provided.dragHandleProps}
+                                            className={styles.column}
+                                        >
+                                            <span className={styles.dragHandle} {...provided.dragHandleProps}>
+                                                ☰
+                                            </span>
+                                            <span>{index + 1}.</span>
+                                            <div className={styles.radioGroup}>
+                                                <label>
+                                                    <input
+                                                        type="radio"
+                                                        checked={column.type === "a"}
+                                                        onChange={() => handleColumnChange(index, "type", "a")}
+                                                    /> a
+                                                </label>
+                                                <label>
+                                                    <input
+                                                        type="radio"
+                                                        checked={column.type === "fx"}
+                                                        onChange={() => handleColumnChange(index, "type", "fx")}
+                                                    /> f(x)
+                                                </label>
+                                            </div>
+                                            {column.type === "a" && typeof column.name === "string" && !column.name.includes('new_column_') && (
+                                                <input
+                                                    type="text"
+                                                    className={styles.inpt_js}
+                                                    value={column.title || ''}
+                                                    onChange={(e) => handleColumnChange(index, "title", e.target.value)}
+                                                    placeholder="Введите заголовок"
+                                                />
+                                            )}
+                                            {column.name?.indexOf('new_column_') === 0 && (
+                                                <input
+                                                    type="text"
+                                                    className={styles.inpt_js}
+                                                    value={column.title || ''}
+                                                    onChange={(e) => handleColumnChange(index, "title", e.target.value)}
+                                                    placeholder="Введите заголовок"
+                                                />
+                                            )}
+                                            {column.type === "fx" && column.where && (
+                                                <input
+                                                    type="text"
+                                                    className={styles.inpt_js}
+                                                    value={column.fx ?? ''}
+                                                    onChange={(e) => {
+                                                        handleColumnChange(index, "fx", e.target.value);
+                                                    }}
+                                                    placeholder='Пример: [professiya] == "Web-разработчик" ? "Да" : "Нет"'
+                                                    title="Формат: [поле] оператор 'значение' ? 'если_да' : 'если_нет'"
+                                                    onDoubleClick={() => navigator.clipboard.writeText(`[${column.name}]`)}
+                                                />
+                                            )}
+                                            <button onClick={() => handleDeleteColumn(index)}>Удалить</button>
+                                        </div>
+                                    )}
+                                </Draggable>
+                            ))}
+                            {provided.placeholder}
+                        </div>
                     )}
-                    {column.name?.indexOf('new_column_') === 0 && (
-                        <input
-                            type="text"
-                            className={styles.inpt_js}
-                            value={column.title || ''}
-                            onChange={(e) => handleColumnChange(index, "title", e.target.value)}
-                            placeholder="Введите заголовок"
-                        />
-                    )}
-                    {column.type === "fx" && column.where && (
-                        <input
-                            type="text"
-                            className={styles.inpt_js}
-                            value={column.fx ?? ''}
-                            onChange={(e) => {
-                                    handleColumnChange(index, "fx", e.target.value);
-                            }}
-                            placeholder='Пример: [professiya] == "Web-разработчик" ? "Да" : "Нет"'
-                            title="Формат: [поле] оператор 'значение' ? 'если_да' : 'если_нет'"
-                            onDoubleClick={() => navigator.clipboard.writeText(`[${column.name}]`)}
-                        />
-                    )}
-                    <button onClick={() => handleDeleteColumn(index)}>Удалить</button>
-                </div>
-            ))}
+                </Droppable>
+            </DragDropContext>
 
             <button onClick={handleChangeToReport} className={styles.addToReportBtn}>Изменить отчет</button>
         </div>

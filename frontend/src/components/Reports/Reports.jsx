@@ -54,28 +54,35 @@ const Reports = ({ onReportSelect }) => {
     } = useSelector((state) => state.reports);
 
     const correctServerDate = (dateString) => {
-        if (!dateString || !dateString.includes(' в ')) return dateString || '—';
-
-        try {
-            const [datePart, timePart] = dateString.split(' в ');
-            const [day, month, year] = datePart.split('.');
-            const [hours, minutes] = timePart.split(':');
-
-            const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-
-            const mskOffset = 0 * 60 * 60 * 1000; // 3 часа в миллисекундах
-            const localDate = new Date(utcDate.getTime() + mskOffset);
-
-            const formattedDay = String(localDate.getDate()).padStart(2, '0');
-            const formattedMonth = String(localDate.getMonth() + 1).padStart(2, '0');
-            const formattedHours = String(localDate.getHours()).padStart(2, '0');
-            const formattedMinutes = String(localDate.getMinutes()).padStart(2, '0');
-
-            return `${formattedDay}.${formattedMonth}.${localDate.getFullYear()} в ${formattedHours}:${formattedMinutes}`;
-        } catch (e) {
-            console.error('Error formatting date:', e);
-            return dateString || '—';
+        // Если дата пришла как число (Excel serial)
+        if (typeof dateString === 'number') {
+            return formatExcelSerialDate(dateString) + ' в 00:00';
         }
+
+        // Если дата уже в правильном строковом формате
+        if (dateString && dateString.includes(' в ')) {
+            try {
+                const [datePart, timePart] = dateString.split(' в ');
+                const [day, month, year] = datePart.split('.');
+                const [hours, minutes] = timePart.split(':');
+
+                const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+                const mskOffset = 0 * 60 * 60 * 1000;
+                const localDate = new Date(utcDate.getTime() + mskOffset);
+
+                const formattedDay = String(localDate.getDate()).padStart(2, '0');
+                const formattedMonth = String(localDate.getMonth() + 1).padStart(2, '0');
+                const formattedHours = String(localDate.getHours()).padStart(2, '0');
+                const formattedMinutes = String(localDate.getMinutes()).padStart(2, '0');
+
+                return `${formattedDay}.${formattedMonth}.${localDate.getFullYear()} в ${formattedHours}:${formattedMinutes}`;
+            } catch (e) {
+                console.error('Error formatting date:', e);
+                return dateString || '—';
+            }
+        }
+
+        return dateString || '—';
     };
 
     useEffect(() => {

@@ -3,14 +3,17 @@
 .container
   width: 100%
   margin: 0 auto
+
   h3
     font-size: 24px
     margin-bottom: 20px
+
   .box_choose
     display: flex
     flex-direction: column
     align-items: flex-start
     margin-bottom: 20px
+
     .slctPart2
       font-family: 'Montserrat', sans-serif
       border: 3px solid idx.$border
@@ -27,6 +30,7 @@
       box-sizing: border-box
       cursor: pointer
       margin-right: 15px
+
       &::after
         content: '▼'
         position: absolute
@@ -35,13 +39,19 @@
         transform: translateY(-50%)
         font-size: 12px
         color: idx.$border
+
       &:hover, &:focus
         border-color: idx.$border
+
       option
         font-family: 'Montserrat', sans-serif
         font-size: 16px
+
   .box__title
     margin-bottom: 10px
+    display: flex
+    align-items: center
+
     img
       margin-right: 5px
 
@@ -49,6 +59,7 @@
     display: flex
     align-items: center
     margin-bottom: 20px
+
     .btn_preview
       font-family: Montserrat
       max-width: 250px
@@ -62,8 +73,10 @@
       cursor: pointer
       opacity: 0.8
       transition: 0.3s
+
       &:hover
         opacity: 1
+
     input[type="text"]
       background: none
       max-width: 358px
@@ -73,6 +86,7 @@
       border-radius: 8px
       font-size: 16px
       margin-right: 15px
+
     .slctPart
       font-family: 'Montserrat', sans-serif
       border: 3px solid idx.$border
@@ -89,6 +103,7 @@
       box-sizing: border-box
       cursor: pointer
       margin-right: 15px
+
       &::after
         content: '▼'
         position: absolute
@@ -97,18 +112,20 @@
         transform: translateY(-50%)
         font-size: 12px
         color: idx.$border
+
       &:hover, &:focus
         border-color: idx.$border
+
       option
         font-family: 'Montserrat', sans-serif
         font-size: 16px
-
 
   .box3
     display: flex
     flex-direction: column
     align-items: flex-start
     margin-bottom: 20px
+
     .conditionRow
       display: flex
       gap: 10px
@@ -130,6 +147,7 @@
         box-sizing: border-box
         cursor: pointer
         margin-right: 15px
+
   h3
     font-size: 20px
     margin-top: 20px
@@ -146,6 +164,7 @@
     opacity: 0.8
     transition: 0.3s ease-in-out
     margin-left: 15px
+
     &:hover
       opacity: 1
 
@@ -154,10 +173,7 @@
     align-items: center
     margin-bottom: 15px
     padding: 10px
-    //border-bottom: 1px solid idx.$border
-    //border-top: 1px solid idx.$border
     border-radius: 8px
-    //background-color: #fff
 
     .slct_column
       font-family: 'Montserrat', sans-serif
@@ -175,6 +191,7 @@
       box-sizing: border-box
       cursor: pointer
       margin-right: 15px
+
       &::after
         content: '▼'
         position: absolute
@@ -183,11 +200,14 @@
         transform: translateY(-50%)
         font-size: 12px
         color: idx.$border
+
       &:hover, &:focus
         border-color: idx.$border
+
       option
         font-family: 'Montserrat', sans-serif
         font-size: 16px
+
     .inpt_js
       max-width: 488px
       width: 100%
@@ -207,6 +227,12 @@
 
       label
         margin-right: 15px
+        display: flex
+        align-items: center
+        cursor: pointer
+
+        input[type="radio"]
+          margin-right: 5px
 
     button
       max-width: 170px
@@ -217,6 +243,7 @@
       border-radius: 8px
       padding: 10px 10px
       cursor: pointer
+      transition: background-color 0.3s
 
       &:hover
         background-color: #c82333
@@ -232,6 +259,108 @@
     width: 100%
     opacity: 0.8
     transition: 0.3s ease-in-out
+    font-size: 16px
+    margin-top: 20px
 
     &:hover
       opacity: 1
+
+  .formulaEditorModal
+    position: fixed
+    top: 0
+    left: 0
+    right: 0
+    bottom: 0
+    background-color: rgba(0, 0, 0, 0.5)
+    display: flex
+    justify-content: center
+    align-items: center
+    z-index: 1000
+
+    .formulaEditorContent
+      background-color: idx.$main-bg
+      padding: 12px
+      border-radius: 8px
+      width: 80%
+      max-width: 800px
+      max-height: 80vh
+      overflow-y: auto
+
+      h3
+        color: idx.$text-color
+        margin-bottom: 15px
+
+      .formulaExamples
+        margin: 15px 0
+        padding: 15px
+        background-color: idx.$main-bg
+        border-radius: 8px
+
+        h4
+          color: idx.$text-color
+          margin-bottom: 10px
+
+        ul
+          list-style-type: none
+          padding-left: 0
+
+          li
+            margin-bottom: 8px
+            color: idx.$text-color
+
+            code
+              background-color: idx.$main-bg
+              padding: 2px 5px
+              border-radius: 4px
+              font-family: monospace
+
+      .formulaButtons
+        display: flex
+        justify-content: flex-end
+        gap: 10px
+        margin-top: 15px
+
+        button
+          padding: 8px 16px
+          border-radius: 4px
+          border: none
+          cursor: pointer
+          transition: background-color 0.3s
+
+          &:first-child
+            background-color: idx.$main-btn
+            color: white
+
+          &:last-child
+            background-color: #6c757d
+            color: white
+
+          &:hover
+            opacity: 0.9
+
+.dragHandle
+  cursor: move
+  margin-right: 10px
+  font-size: 18px
+  user-select: none
+
+[data-rbd-draggable-context-id]
+  transition: transform 0.2s ease
+
+[data-rbd-drag-handle-context-id]
+  cursor: grab
+
+  &:active
+    cursor: grabbing
+
+[data-rbd-draggable-id]:not([data-rbd-drag-placeholder])
+  //background-color: idx.$main-bg
+  border: 1px dashed idx.$border
+  margin-bottom: 8px
+  border-radius: 4px
+  padding: 8px
+
+[data-rbd-drag-placeholder]
+  background-color: rgba(idx.$main-btn, 0.2)
+  border: 2px dashed idx.$border
+  border-radius: 4px

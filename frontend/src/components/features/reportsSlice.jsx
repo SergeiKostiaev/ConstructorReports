@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { toast } from 'react-toastify';
+import {formatExcelSerialDate} from "../Utils/excelDateUtils.jsx";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -16,20 +17,30 @@ export const fetchReports = createAsyncThunk(
             });
 
             const data = await response.json();
-            console.log('Raw data from server:', data);
 
             if (response.ok && data.success) {
-                return data.data.map((report) => ({
-                    id: report.id,
-                    name: report.name,
-                    extension: report.extension,
-                    basket: report.basket,
-                    created_at: report.created_at,
-                    updated_at: report.updated_at,
-                    creator: report.user?.name || 'Неизвестно',
-                    category: report.category?.name || 'Загруженные отчеты',
-                    status: report.status?.name || 'Без статуса',
-                }));
+                return data.data.map((report) => {
+                    // Преобразуем даты из Excel serial в строки
+                    const formatDate = (date) => {
+                        if (typeof date === 'number') {
+                            return formatExcelSerialDate(date) + ' в 00:00';
+                        }
+                        return date || '—';
+                    };
+
+                    return {
+                        id: report.id,
+                        name: report.name,
+                        extension: report.extension,
+                        basket: report.basket,
+                        created_at: formatDate(report.created_at),
+                        updated_at: formatDate(report.updated_at),
+                        date_from: formatDate(report.date_from),
+                        creator: report.user?.name || 'Неизвестно',
+                        category: report.category?.name || 'Загруженные отчеты',
+                        status: report.status?.name || 'Без статуса',
+                    };
+                });
             } else {
                 return rejectWithValue(data.message || 'Ошибка при получении отчётов');
             }
@@ -151,7 +162,7 @@ export const revertReport = createAsyncThunk(
 // Экспорт отчета
 export const exportReport = createAsyncThunk(
     'reports/exportReport',
-    async ({ reportId, extension, updatedAt }, { rejectWithValue }) => {
+    async ({ reportId, extension, dateFrom }, { rejectWithValue }) => {
         try {
             const response = await fetch(`${API_URL}/api/report/export/${reportId}?format=${extension}`, {
                 method: 'GET',
@@ -166,11 +177,17 @@ export const exportReport = createAsyncThunk(
 
             const blob = await response.blob();
 
-            // форматируем дату из updatedAt, если она передана
+            // Форматируем дату для имени файла
             let timestamp = '';
-            if (updatedAt) {
-                const [date, time] = updatedAt.split(' в ');
-                timestamp = `${date.replace(/\./g, '-')}_${time.replace(/:/g, '-')}`; // 21-04-2025_14-12
+            if (dateFrom) {
+                // Если dateFrom - это Excel serial number
+                if (typeof dateFrom === 'number') {
+                    timestamp = formatExcelSerialDate(dateFrom, 'ru-RU').replace(/\./g, '-');
+                } else {
+                    // Если это уже строка
+                    const [date] = dateFrom.split(' в ');
+                    timestamp = date.replace(/\./g, '-');
+                }
             } else {
                 const now = new Date();
                 timestamp = now.toLocaleString('ru-RU').replace(/[.,: ]+/g, '_');
