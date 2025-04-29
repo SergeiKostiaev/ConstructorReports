@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL;
+const INACTIVITY_TIMEOUT = 60*60*1000; // для теста (поменять на 60*1000 для минуты)
 
 const AuthContext = createContext();
 
@@ -11,14 +12,53 @@ export const AuthProvider = ({ children }) => {
         return storedAuth ? JSON.parse(storedAuth) : false;
     });
 
-    const [user, setUser] = useState(() => {
-        const storedUser = localStorage.getItem('user');
-        return storedUser ? JSON.parse(storedUser) : null;
-    });
-
     const [errorMessage, setErrorMessage] = useState('');
-
+    const [inactivityTimer, setInactivityTimer] = useState(null);
     const navigate = useNavigate();
+
+    // Функция для сброса таймера неактивности
+    const resetInactivityTimer = () => {
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+        }
+
+        const timer = setTimeout(() => {
+            logout();
+            localStorage.setItem('sessionExpired', 'true');
+        }, INACTIVITY_TIMEOUT);
+
+        setInactivityTimer(timer);
+        localStorage.setItem('lastActivity', Date.now());
+    };
+
+    // Обработчики событий активности
+    const setupActivityListeners = () => {
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+
+        events.forEach(event => {
+            window.addEventListener(event, resetInactivityTimer);
+        });
+
+        return () => {
+            events.forEach(event => {
+                window.removeEventListener(event, resetInactivityTimer);
+            });
+        };
+    };
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            resetInactivityTimer();
+            const cleanup = setupActivityListeners();
+
+            return () => {
+                if (inactivityTimer) {
+                    clearTimeout(inactivityTimer);
+                }
+                cleanup();
+            };
+        }
+    }, [isAuthenticated]);
 
     const login = async (email, password, companyId) => {
         try {
@@ -34,20 +74,23 @@ export const AuthProvider = ({ children }) => {
 
             if (!response.ok || !data.success) {
                 setErrorMessage('Неверные учетные данные или ошибка сервера');
-                return;
+                return { success: false, message: 'Неверные учетные данные' };
             }
 
             setIsAuthenticated(true);
-            setUser(data.user);
             localStorage.setItem('isAuthenticated', JSON.stringify(true));
             localStorage.setItem('api_token', data.data.api_token);
             localStorage.setItem('name', data.data.user.name);
             localStorage.setItem('role', data.data.user.role_id);
             localStorage.setItem('confirmed', data.data.user.confirmed);
+            localStorage.removeItem('sessionExpired');
             navigate('/home');
+
+            return { success: true };
         } catch (error) {
             console.error('Ошибка:', error);
             setErrorMessage('Ошибка сети или сервера');
+            return { success: false, message: 'Ошибка сети' };
         }
     };
 
@@ -66,37 +109,44 @@ export const AuthProvider = ({ children }) => {
             if (!response.ok || !data.success) {
                 const errorMessages = Object.values(data.data).flat().join(' ');
                 setErrorMessage(errorMessages || 'Ошибка регистрации');
-                return;
+                return { success: false, message: errorMessages };
             }
 
             setIsAuthenticated(true);
-            setUser(data.user);
             localStorage.setItem('isAuthenticated', JSON.stringify(true));
             navigate('/login');
+
+            return { success: true };
         } catch (error) {
             console.error('Ошибка:', error);
             setErrorMessage('Ошибка сети или сервера');
+            return { success: false, message: 'Ошибка сети' };
         }
     };
 
-    // Функция выхода
     const logout = () => {
         setIsAuthenticated(false);
-        setUser(null);
         localStorage.removeItem('isAuthenticated');
-        localStorage.removeItem('user');
-        localStorage.removeItem('role');
         localStorage.removeItem('api_token');
         localStorage.removeItem('name');
+        localStorage.removeItem('role');
+        localStorage.removeItem('lastActivity');
+
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+        }
+
         navigate('/login');
+    };
+
+    const clearError = () => {
+        setErrorMessage('');
     };
 
     useEffect(() => {
         const storedAuth = localStorage.getItem('isAuthenticated');
-        const storedUser = localStorage.getItem('user');
-        if (storedAuth && storedUser) {
+        if (storedAuth) {
             setIsAuthenticated(JSON.parse(storedAuth));
-            setUser(JSON.parse(storedUser));
         }
     }, []);
 
@@ -104,20 +154,17 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider
             value={{
                 isAuthenticated,
-                user,
-                currentUser: user,
                 register,
                 login,
                 logout,
                 errorMessage,
-                clearError: () => setErrorMessage(''), // Метод очистки ошибки
+                clearError,
             }}>
             {children}
         </AuthContext.Provider>
     );
 };
 
-// Хук для удобного использования контекста
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {

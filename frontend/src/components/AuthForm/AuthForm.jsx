@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './AuthForm.module.css';
 
 const AuthForm = ({ isRegister }) => {
     const authContext = useAuth();
-    const { login, register, errorMessage } = authContext;
+    const { login, register, errorMessage, clearError } = authContext;
 
     const [companyId, setCompanyId] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -34,7 +35,7 @@ const AuthForm = ({ isRegister }) => {
                     await register(name, email, password, companyId);
                 }
             } catch (err) {
-
+                // Обработка ошибок
             }
         }
     };

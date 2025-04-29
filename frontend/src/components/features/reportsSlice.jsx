@@ -213,10 +213,16 @@ const reportsSlice = createSlice({
         newReportLoaded: false,
         reportsPerPage: 6,
         selectedStatus: null,
+        selectedExtension: null,
+        statuses: [],
+        extensions: [],
     },
     reducers: {
         setSelectedStatus: (state, action) => {
             state.selectedStatus = action.payload;
+        },
+        setSelectedExtension: (state, action) => {
+            state.selectedExtension = action.payload;
         },
         setSelectedUser: (state, action) => {
             state.selectedUser = action.payload;
@@ -245,28 +251,35 @@ const reportsSlice = createSlice({
             state.previewReport = action.payload;
         },
         filterReports: (state) => {
-            const { reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users, selectedStatus } = state;
+            const { reports, selectedCategory, selectedUser, searchQuery, selectedBasket, selectedStatus, selectedExtension } = state;
 
             state.filteredReports = reports.filter((report) => {
                 const matchesCategory =
                     selectedCategory === null ||
-                    report.category === categories.find((category) => category.id === selectedCategory)?.name;
+                    (selectedCategory === 0 && report.category === null) ||
+                    report.category === state.categories.find((category) => category.id === selectedCategory)?.name;
+
                 const matchesUser =
                     selectedUser === null ||
-                    report.creator === users.find((user) => user.id === selectedUser)?.name;
+                    report.creator === state.users.find((user) => user.id === selectedUser)?.name;
+
                 const matchesStatus =
                     selectedStatus === null || report.status === selectedStatus;
+
+                const matchesExtension =
+                    selectedExtension === null || report.extension === selectedExtension;
+
                 const matchesSearch = [
                     report.name,
                     report.creator,
                     report.category || "",
-                    report.status || "", // добавлено
+                    report.status || "",
                 ].some((field) => field.toLowerCase().includes(searchQuery.toLowerCase()));
 
                 if (selectedBasket) {
-                    return report.basket && matchesCategory && matchesUser && matchesStatus && matchesSearch;
+                    return report.basket && matchesCategory && matchesUser && matchesStatus && matchesExtension && matchesSearch;
                 } else {
-                    return !report.basket && matchesCategory && matchesUser && matchesStatus && matchesSearch;
+                    return !report.basket && matchesCategory && matchesUser && matchesStatus && matchesExtension && matchesSearch;
                 }
             });
         },
@@ -304,7 +317,7 @@ const reportsSlice = createSlice({
             }
         },
         addNewReport: (state, action) => {
-            state.reports.unshift(action.payload); // Добавляем в начало списка
+            state.reports.unshift(action.payload);
             state.filteredReports.unshift(action.payload);
         },
     },
@@ -320,6 +333,11 @@ const reportsSlice = createSlice({
                 state.lastModifiedReports = [...action.payload]
                     .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
                     .slice(0, 5);
+
+                // Обновляем списки уникальных статусов и расширений
+                state.statuses = [...new Set(action.payload.map(report => report.status))];
+                state.extensions = [...new Set(action.payload.map(report => report.extension))];
+
                 if (!state.newReportLoaded) {
                     state.newReportLoaded = true;
                 }
@@ -389,8 +407,12 @@ export const {
     filterReports,
     sortReports,
     setSelectedStatus,
+    setSelectedExtension,
     addNewReport,
 } = reportsSlice.actions;
 
-export default reportsSlice.reducer;
+// Селекторы
+export const selectStatuses = (state) => state.reports.statuses;
+export const selectExtensions = (state) => state.reports.extensions;
 
+export default reportsSlice.reducer;

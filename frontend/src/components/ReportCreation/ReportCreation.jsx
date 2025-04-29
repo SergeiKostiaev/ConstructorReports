@@ -21,11 +21,21 @@ const ReportCreation = ({ idReport }) => {
     const [selectedExtension, setSelectedExtension] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
     const [currentReportId, setCurrentReportId] = useState(idReport);
+    const [reportNotFound, setReportNotFound] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const savedReportId = localStorage.getItem('selectedReportId');
-        if (savedReportId && savedReportId !== idReport.toString()) {
-            setCurrentReportId(Number(savedReportId));
+        return () => {
+            localStorage.removeItem('selectedReportId');
+        };
+    }, []);
+
+    useEffect(() => {
+        // Если пришел новый idReport, используем его и очищаем localStorage
+        if (idReport && idReport !== currentReportId) {
+            localStorage.removeItem('selectedReportId');
+            setCurrentReportId(idReport);
+            setReportNotFound(false);
         }
     }, [idReport]);
 
@@ -113,6 +123,10 @@ const ReportCreation = ({ idReport }) => {
     useEffect(() => {
         const bearerToken = localStorage.getItem('api_token');
 
+        if (!currentReportId) {
+            setReportNotFound(true);
+            return;
+        }
         fetch(`${API_URL}/api/report/${currentReportId}`, {
             method: 'GET',
             headers: {
@@ -122,6 +136,7 @@ const ReportCreation = ({ idReport }) => {
             .then((response) => response.json())
             .then((data) => {
                 if (data.success) {
+                    setReportNotFound(false);
                     const report = data.data;
                     setName(report.name);
                     setDataHeaders(report.headers);
@@ -129,7 +144,17 @@ const ReportCreation = ({ idReport }) => {
                     setDataReport(report?.whereData?.length > 0 ? report.whereData : report.data);
                     setSelectedExtension(report.extension);
                     setSelectedCategory(report.category_id);
-                } else alert(JSON.stringify(data));
+                } else {
+                    setReportNotFound(true);
+                    setCurrentReportId(null);
+                    localStorage.removeItem('selectedReportId');
+                }
+            })
+            .catch((error) => {
+                console.error('Ошибка при загрузке отчета:', error);
+                setReportNotFound(true);
+                setCurrentReportId(null);
+                localStorage.removeItem('selectedReportId');
             });
 
         fetch(`${API_URL}/api/categories`, {
@@ -142,9 +167,7 @@ const ReportCreation = ({ idReport }) => {
             .then((data) => {
                 if (data.success) {
                     setDataCategories(data.data);
-                    console.log('Получили данные об категориях');
-                    console.log(data);
-                } else alert(JSON.stringify(data));
+                }
             });
 
         fetch(`${API_URL}/api/where`, {
@@ -157,9 +180,7 @@ const ReportCreation = ({ idReport }) => {
             .then((data) => {
                 if (data.success) {
                     setDataWhereColumns(data.data);
-                    console.log('Получили данные об доступных условиях для столбцов');
-                    console.log(data);
-                } else alert(JSON.stringify(data));
+                }
             });
 
         fetch(`${API_URL}/api/report/extensions`, {
@@ -172,11 +193,9 @@ const ReportCreation = ({ idReport }) => {
             .then((data) => {
                 if (data.success) {
                     setDataExtensions(data.data);
-                    console.log('Получили данные об расширении файлов');
-                    console.log(data);
-                } else alert(JSON.stringify(data));
+                }
             });
-    }, []);
+    }, [currentReportId, reportNotFound]);
 
     const calculateYearsOfExperience = (date) => {
         const startDate = new Date(date);
@@ -204,66 +223,66 @@ const ReportCreation = ({ idReport }) => {
             });
         };
 
-        // Функция для замены строк в кавычках
-        const replaceStringsInExpression = (expr) => {
-            // 1. Заменяем все строки в одинарных/двойных кавычках на временные метки
-            const stringMap = {};
-            let counter = 0;
-
-            expr = expr.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, match => {
-                const key = `__STR${counter++}__`;
-                stringMap[key] = match;
-                return key;
-            });
-
-            // 2. Заменяем все оставшиеся слова в сравнениях на строки
-            expr = expr.replace(/(==|!=|>=|<=|>|<)\s*([а-яА-ЯёЁa-zA-Z-]+)/g, '$1 "$2"');
-
-            // 3. Восстанавливаем оригинальные строки
-            for (const [key, value] of Object.entries(stringMap)) {
-                expr = expr.replace(key, value);
-            }
-
-            return expr;
-        };
-
-        const prepareVariables = (record, columns) => {
-            const variables = {};
-
-            columns.forEach((col, index) => {
-                let value = record[index];
-
-                // Обработка специальных случаев
-                if (value === undefined || value === null) {
-                    value = '';
-                }
-
-                // Для строковых значений добавляем кавычки
-                if (typeof value === 'string' && !value.match(/^\d+$/) && !value.startsWith('"') && !value.startsWith("'")) {
-                    value = `"${value}"`;
-                }
-
-                variables[col.name] = value;
-            });
-
-            return variables;
-        };
-
-        const validateExpression = (expr) => {
-            // Проверяем наличие незакавыченных слов
-            const unquotedWords = expr.match(/(==|!=|>=|<=|>|<)\s*([а-яА-ЯёЁa-zA-Z-]+)(?![^"']*["'])/g);
-            if (unquotedWords) {
-                throw new Error(`Незакавыченные значения: ${unquotedWords.join(', ')}`);
-            }
-
-            // Проверяем синтаксис тернарного оператора
-            if (expr.includes('?')) {
-                const parts = expr.split('?');
-                if (parts.length !== 2 || !parts[1].includes(':')) {
-                    throw new Error('Некорректный тернарный оператор');
-                }
-            }
-        };
+        // // Функция для замены строк в кавычках
+        // const replaceStringsInExpression = (expr) => {
+        //     // 1. Заменяем все строки в одинарных/двойных кавычках на временные метки
+        //     const stringMap = {};
+        //     let counter = 0;
+        //
+        //     expr = expr.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, match => {
+        //         const key = `__STR${counter++}__`;
+        //         stringMap[key] = match;
+        //         return key;
+        //     });
+        //
+        //     // 2. Заменяем все оставшиеся слова в сравнениях на строки
+        //     expr = expr.replace(/(==|!=|>=|<=|>|<)\s*([а-яА-ЯёЁa-zA-Z-]+)/g, '$1 "$2"');
+        //
+        //     // 3. Восстанавливаем оригинальные строки
+        //     for (const [key, value] of Object.entries(stringMap)) {
+        //         expr = expr.replace(key, value);
+        //     }
+        //
+        //     return expr;
+        // };
+        //
+        // const prepareVariables = (record, columns) => {
+        //     const variables = {};
+        //
+        //     columns.forEach((col, index) => {
+        //         let value = record[index];
+        //
+        //         // Обработка специальных случаев
+        //         if (value === undefined || value === null) {
+        //             value = '';
+        //         }
+        //
+        //         // Для строковых значений добавляем кавычки
+        //         if (typeof value === 'string' && !value.match(/^\d+$/) && !value.startsWith('"') && !value.startsWith("'")) {
+        //             value = `"${value}"`;
+        //         }
+        //
+        //         variables[col.name] = value;
+        //     });
+        //
+        //     return variables;
+        // };
+        //
+        // const validateExpression = (expr) => {
+        //     // Проверяем наличие незакавыченных слов
+        //     const unquotedWords = expr.match(/(==|!=|>=|<=|>|<)\s*([а-яА-ЯёЁa-zA-Z-]+)(?![^"']*["'])/g);
+        //     if (unquotedWords) {
+        //         throw new Error(`Незакавыченные значения: ${unquotedWords.join(', ')}`);
+        //     }
+        //
+        //     // Проверяем синтаксис тернарного оператора
+        //     if (expr.includes('?')) {
+        //         const parts = expr.split('?');
+        //         if (parts.length !== 2 || !parts[1].includes(':')) {
+        //             throw new Error('Некорректный тернарный оператор');
+        //         }
+        //     }
+        // };
 
         // Функция для нормализации чисел с запятыми
         const normalizeNumbers = (expr) => {
@@ -496,7 +515,16 @@ const ReportCreation = ({ idReport }) => {
             });
     };
 
-
+    if (reportNotFound || !currentReportId) {
+        return (
+            <div className={styles.container}>
+                <div>
+                    <h3>Выберите отчет из системы</h3>
+                    <p>Пожалуйста, выберите существующий отчет для редактирования</p>
+                </div>
+            </div>
+        );
+    }
     return (
         <div className={styles.container}>
             <div className={styles.box}>

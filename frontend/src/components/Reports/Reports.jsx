@@ -19,8 +19,9 @@ import {
     setPreviewReport,
     filterReports,
     sortReports,
+    setSelectedStatus,
+    setSelectedExtension,
 } from "../features/reportsSlice.jsx";
-import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import edit from '../../assets/edit2.svg';
@@ -46,25 +47,25 @@ const Reports = ({ onReportSelect }) => {
         sortByUpdatedAt,
         reportsPerPage,
         activeProcesses,
+        selectedStatus,
+        selectedExtension,
+        statuses,
+        extensions,
     } = useSelector((state) => state.reports);
 
     const correctServerDate = (dateString) => {
         if (!dateString || !dateString.includes(' в ')) return dateString || '—';
 
         try {
-            // 1. Парсим дату с сервера (предполагаем UTC)
             const [datePart, timePart] = dateString.split(' в ');
             const [day, month, year] = datePart.split('.');
             const [hours, minutes] = timePart.split(':');
 
-            // 2. Создаем Date объект в UTC
             const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
 
-            // 3. Корректируем на часовой пояс пользователя (MSK = UTC+3)
             const mskOffset = 0 * 60 * 60 * 1000; // 3 часа в миллисекундах
             const localDate = new Date(utcDate.getTime() + mskOffset);
 
-            // 4. Форматируем в нужный вид
             const formattedDay = String(localDate.getDate()).padStart(2, '0');
             const formattedMonth = String(localDate.getMonth() + 1).padStart(2, '0');
             const formattedHours = String(localDate.getHours()).padStart(2, '0');
@@ -86,7 +87,30 @@ const Reports = ({ onReportSelect }) => {
     useEffect(() => {
         dispatch(filterReports());
         dispatch(sortReports());
-    }, [reports, selectedCategory, selectedUser, searchQuery, selectedBasket, categories, users, sortByCreatedAt, sortByUpdatedAt, dispatch]);
+    }, [
+        reports,
+        selectedCategory,
+        selectedUser,
+        searchQuery,
+        selectedBasket,
+        categories,
+        users,
+        sortByCreatedAt,
+        sortByUpdatedAt,
+        selectedStatus,
+        selectedExtension,
+        dispatch
+    ]);
+
+    const handleStatusChange = (event) => {
+        const status = event.target.value !== "" ? event.target.value : null;
+        dispatch(setSelectedStatus(status));
+    };
+
+    const handleExtensionChange = (event) => {
+        const extension = event.target.value !== "" ? event.target.value : null;
+        dispatch(setSelectedExtension(extension));
+    };
 
     const handleRowClick = (report, e) => {
         if (e.target.tagName === 'IMG' || e.target.tagName === 'BUTTON') {
@@ -194,10 +218,24 @@ const Reports = ({ onReportSelect }) => {
                         <option key={user.id} value={user.id}>{user.name}</option>
                     ))}
                 </select>
-                <select className={styles.container__btn_item} onChange={handleCategoryChange} value={selectedCategory || 0}>
-                    <option value="0">Выбор категории</option>
+                <select className={styles.container__btn_item} onChange={handleCategoryChange} value={selectedCategory !== null ? selectedCategory : ""}>
+                    <option value="">Все категории</option>
                     {categories.map((category) => (
-                        <option key={category.id || 0} value={category.id || 0}>{category.name}</option>
+                        <option key={category.id || 0} value={category.id || ""}>{category.name}</option>
+                    ))}
+                </select>
+
+                <select className={styles.container__btn_item} onChange={handleStatusChange} value={selectedStatus || ""}>
+                    <option value="">Все статусы</option>
+                    {statuses.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                    ))}
+                </select>
+
+                <select className={styles.container__btn_item} onChange={handleExtensionChange} value={selectedExtension || ""}>
+                    <option value="">Все форматы</option>
+                    {extensions.map((ext) => (
+                        <option key={ext} value={ext}>{ext.toUpperCase()}</option>
                     ))}
                 </select>
                 <input
