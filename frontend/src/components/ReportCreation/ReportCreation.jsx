@@ -3,12 +3,71 @@ import styles from "./ReportCreation.module.sass";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Parser } from 'expr-eval';
-// import { addActiveProcess, setReportStatus } from '../features/reportsSlice.jsx';
-
 import screp from '../../assets/screp.svg';
 import {DragDropContext, Draggable, Droppable} from "react-beautiful-dnd";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+const FormulaEditorModal = ({ formula, onSave, onClose }) => {
+    const [currentFormula, setCurrentFormula] = useState(formula);
+    const [showExamples, setShowExamples] = useState(false);
+
+    const handleSave = () => {
+        onSave(currentFormula);
+        onClose();
+    };
+
+    return (
+        <div className={styles.formulaEditorModal}>
+            <div className={styles.formulaEditorContent}>
+                <h3>Редактор формул</h3>
+
+                <textarea
+                    value={currentFormula}
+                    onChange={(e) => setCurrentFormula(e.target.value)}
+                    className={styles.formulaTextarea}
+                    placeholder="Введите формулу..."
+                />
+
+                <button
+                    className={styles.exampleToggle}
+                    onClick={() => setShowExamples(!showExamples)}
+                >
+                    {showExamples ? 'Скрыть примеры' : 'Показать примеры'}
+                </button>
+
+                {showExamples && (
+                    <div className={styles.formulaExamples}>
+                        <h4>Примеры формул:</h4>
+                        <ul>
+                            <li><code>SUM([revenue])</code> - Сумма по столбцу revenue</li>
+                            <li><code>AVG([temperature])</code> - Среднее значение</li>
+                            <li><code>COUNT([id])</code> - Количество записей</li>
+                            <li><code>MIN([price])</code> - Минимальное значение</li>
+                            <li><code>MAX([price])</code> - Максимальное значение</li>
+                            <li><code>STDDEV([score])</code> - Стандартное отклонение</li>
+                            <li><code>MOVING_AVG([sales], 7)</code> - 7-дневное скользящее среднее</li>
+                            <li><code>CORREL([x], [y])</code> - Корреляция между столбцами</li>
+                            <li><code>LOG([value])</code> - Натуральный логарифм</li>
+                            <li><code>SQRT([value])</code> - Квадратный корень</li>
+                            <li><code>[score] &gt; AVG([score])</code> ? "Выше среднего" : "Ниже"</li>
+                            <li><code>SUM([profit]) / SUM([revenue]) * 100</code> - Маржа в %</li>
+                            <li><code>IF([status] == "active", [price] * 0.9, [price])</code> - Скидка 10% для активных</li>
+                            <li><code>ROUND([value], 2)</code> - Округление до 2 знаков</li>
+                            <li><code>CONCAT([name], " ", [surname])</code> - Объединение строк</li>
+                            <li><code>YEAR([date])</code> - Год из даты</li>
+                        </ul>
+                    </div>
+                )}
+
+                <div className={styles.formulaButtons}>
+                    <button onClick={onClose}>Отмена</button>
+                    <button onClick={handleSave}>Сохранить</button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const ReportCreation = ({ idReport }) => {
     const [customWhereColumns, setCustomWhereColumns] = useState([]);
@@ -19,11 +78,14 @@ const ReportCreation = ({ idReport }) => {
     const [dataCategories, setDataCategories] = useState([]);
     const [dataExtensions, setDataExtensions] = useState([]);
     const [name, setName] = useState("");
+    const [originalName, setOriginalName] = useState("");
     const [selectedExtension, setSelectedExtension] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
     const [currentReportId, setCurrentReportId] = useState(idReport);
     const [reportNotFound, setReportNotFound] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [editingFormulaIndex, setEditingFormulaIndex] = useState(null);
+    const [showFormulaModal, setShowFormulaModal] = useState(false);
 
     useEffect(() => {
         return () => {
@@ -32,13 +94,83 @@ const ReportCreation = ({ idReport }) => {
     }, []);
 
     useEffect(() => {
-        // Если пришел новый idReport, используем его и очищаем localStorage
         if (idReport && idReport !== currentReportId) {
             localStorage.removeItem('selectedReportId');
             setCurrentReportId(idReport);
             setReportNotFound(false);
         }
     }, [idReport]);
+
+    const calculateAggregations = (values, func) => {
+        // const nums = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+        // if (nums.length === 0) return null;
+
+        if (func.toUpperCase() === 'COUNT') {
+            return values.filter(v => v !== null && v !== undefined && v !== '').length;
+        }
+
+        const nums = values.map(v => {
+            if (typeof v === 'string' && v.includes(',')) {
+                v = v.replace(',', '.');
+            }
+            return parseFloat(v);
+        }).filter(v => !isNaN(v));
+
+        if (nums.length === 0) return null;
+
+        switch(func.toUpperCase()) {
+            case 'SUM': return nums.reduce((a, b) => a + b, 0);
+            case 'AVG': return nums.reduce((a, b) => a + b, 0) / nums.length;
+            case 'MIN': return Math.min(...nums);
+            case 'MAX': return Math.max(...nums);
+            case 'STDDEV': {
+                const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+                return Math.sqrt(nums.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / nums.length);
+            }
+            default: return null;
+        }
+    };
+
+    const excelSerialToDate = (serial) => {
+        if (typeof serial !== 'number' || isNaN(serial)) return null;
+        const utcDays = Math.floor(serial - 25569);
+        const utcValue = utcDays * 86400;
+        const date = new Date(utcValue * 1000);
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    };
+
+    const processTimeSeries = (values, windowSize) => {
+        const results = [];
+        for (let i = 0; i < values.length; i++) {
+            const start = Math.max(0, i - windowSize + 1);
+            const window = values.slice(start, i + 1);
+            const nums = window.map(v => parseFloat(v)).filter(v => !isNaN(v));
+            results.push(nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : null);
+        }
+        return results;
+    };
+
+    const calculateCorrelation = (values1, values2) => {
+        if (values1.length !== values2.length || values1.length === 0) return null;
+
+        const nums1 = values1.map(v => parseFloat(v)).filter(v => !isNaN(v));
+        const nums2 = values2.map(v => parseFloat(v)).filter(v => !isNaN(v));
+
+        if (nums1.length !== nums2.length) return null;
+
+        const mean1 = nums1.reduce((a, b) => a + b, 0) / nums1.length;
+        const mean2 = nums2.reduce((a, b) => a + b, 0) / nums2.length;
+
+        let cov = 0, stddev1 = 0, stddev2 = 0;
+
+        for (let i = 0; i < nums1.length; i++) {
+            cov += (nums1[i] - mean1) * (nums2[i] - mean2);
+            stddev1 += Math.pow(nums1[i] - mean1, 2);
+            stddev2 += Math.pow(nums2[i] - mean2, 2);
+        }
+
+        return cov / Math.sqrt(stddev1 * stddev2);
+    };
 
     const handleAddWhereColumn = () => {
         for (let i = 0; i < customWhereColumns.length; i++) {
@@ -47,7 +179,6 @@ const ReportCreation = ({ idReport }) => {
                 break;
             }
         }
-
         setCustomWhereColumns([...customWhereColumns]);
     };
 
@@ -55,16 +186,12 @@ const ReportCreation = ({ idReport }) => {
         setCustomWhereColumns(prev => prev.map(column => {
             if (column.name === name) {
                 column.where = Array.isArray(column.where) ? {} : column.where || {};
-
                 if (where) column.where[field] = value;
             } else {
                 column.where = [];
             }
             return column;
         }));
-
-        console.log('Условия выборки полей изменились');
-        console.log(customWhereColumns);
     };
 
     const handleDeleteWhereColumn = (name) => {
@@ -74,17 +201,17 @@ const ReportCreation = ({ idReport }) => {
                 break;
             }
         }
-        console.log('Удаление условия для столбца');
-        console.log(customWhereColumns);
-
         setCustomWhereColumns([...customWhereColumns]);
     };
 
     const handleAddColumn = () => {
-        setCustomWhereColumns([...customWhereColumns, { fx: "", type: "a", name: "new_column_" + customWhereColumns.length, title: "", where: [] }]);
-
-        console.log('Условия настройки полей изменились');
-        console.log(customWhereColumns);
+        setCustomWhereColumns([...customWhereColumns, {
+            fx: "",
+            type: "a",
+            name: "new_column_" + customWhereColumns.length,
+            title: "",
+            where: []
+        }]);
     };
 
     const handleColumnChange = (index, field, value = '') => {
@@ -94,31 +221,36 @@ const ReportCreation = ({ idReport }) => {
             }
             return column;
         }));
-
-        console.log('Условия настройки полей изменились');
-        console.log(customWhereColumns);
     };
 
     const handleDeleteColumn = (index) => {
         const newRecords = [];
         const newColumns = customWhereColumns.filter((column, iCol) => {
             if (iCol === index) {
-                console.log({ column, iCol, index });
-
                 dataReport.map((records) => {
                     records.splice(index, 1);
                     newRecords.push(records);
                 });
             }
-
             return iCol !== index;
         });
-
-        console.log('===============new===========');
-        console.log({ newRecords });
-
         setNewDataReport([...newRecords]);
         setCustomWhereColumns([...newColumns]);
+    };
+
+    // const handleFormulaDoubleClick = (index) => {
+    //     navigator.clipboard.writeText(`[${customWhereColumns[index].name}]`);
+    //     toast.success(`Скопировано: [${customWhereColumns[index].name}]`, { position: "top-right" });
+    // };
+
+    const handleFormulaClick = (index) => {
+        setEditingFormulaIndex(index);
+        setShowFormulaModal(true);
+    };
+
+    const handleSaveFormula = (formula) => {
+        handleColumnChange(editingFormulaIndex, "fx", formula);
+        setShowFormulaModal(false);
     };
 
     useEffect(() => {
@@ -128,6 +260,7 @@ const ReportCreation = ({ idReport }) => {
             setReportNotFound(true);
             return;
         }
+
         fetch(`${API_URL}/api/report/${currentReportId}`, {
             method: 'GET',
             headers: {
@@ -140,6 +273,7 @@ const ReportCreation = ({ idReport }) => {
                     setReportNotFound(false);
                     const report = data.data;
                     setName(report.name);
+                    setOriginalName(report.name);
                     setDataHeaders(report.headers);
                     setCustomWhereColumns(report.headers);
                     setDataReport(report?.whereData?.length > 0 ? report.whereData : report.data);
@@ -158,223 +292,195 @@ const ReportCreation = ({ idReport }) => {
                 localStorage.removeItem('selectedReportId');
             });
 
-        fetch(`${API_URL}/api/categories`, {
-            method: 'GET',
-            headers: {
-                'Authorization': 'Bearer ' + bearerToken,
-            },
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                if (data.success) {
-                    setDataCategories(data.data);
-                }
-            });
-
-        fetch(`${API_URL}/api/where`, {
-            method: 'GET',
-            headers: {
-                'Authorization': 'Bearer ' + bearerToken,
-            },
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                if (data.success) {
-                    setDataWhereColumns(data.data);
-                }
-            });
-
-        fetch(`${API_URL}/api/report/extensions`, {
-            method: 'GET',
-            headers: {
-                'Authorization': 'Bearer ' + bearerToken,
-            },
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                if (data.success) {
-                    setDataExtensions(data.data);
-                }
+        Promise.all([
+            fetch(`${API_URL}/api/categories`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + bearerToken,
+                },
+            }),
+            fetch(`${API_URL}/api/where`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + bearerToken,
+                },
+            }),
+            fetch(`${API_URL}/api/report/extensions`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + bearerToken,
+                },
+            })
+        ])
+            .then(responses => Promise.all(responses.map(res => res.json())))
+            .then(([categoriesData, whereData, extensionsData]) => {
+                if (categoriesData.success) setDataCategories(categoriesData.data);
+                if (whereData.success) setDataWhereColumns(whereData.data);
+                if (extensionsData.success) setDataExtensions(extensionsData.data);
             });
     }, [currentReportId, reportNotFound]);
 
     const calculateYearsOfExperience = (date) => {
         const startDate = new Date(date);
         const currentDate = new Date();
-        const diffTime = currentDate - startDate;  // разница в миллисекундах
-        const diffYears = diffTime / (1000 * 3600 * 24 * 365);  // конвертируем в годы
-        return diffYears;
+        const diffTime = currentDate - startDate;
+        return diffTime / (1000 * 3600 * 24 * 365);
     };
 
     const filterDataReport = () => {
         const arrayData = [...dataReport];
         const newArrayWhereData = [];
 
-        // Функция для преобразования даты в timestamp
         const parseDateToTimestamp = (dateStr) => {
             if (!dateStr || typeof dateStr !== 'string') return null;
             const [day, month, year] = dateStr.split('.');
             return new Date(`${year}-${month}-${day}`).getTime();
         };
 
-        // Функция для замены дат в строке выражения на timestamp
         const replaceDatesInExpression = (expr) => {
-            return expr.replace(/(\d{2}\.\d{2}\.\d{4})/g, (match) => {
-                return parseDateToTimestamp(match);
-            });
+            return expr.replace(/(\d{2}\.\d{2}\.\d{4})/g, (match) => parseDateToTimestamp(match));
         };
 
-        // // Функция для замены строк в кавычках
-        // const replaceStringsInExpression = (expr) => {
-        //     // 1. Заменяем все строки в одинарных/двойных кавычках на временные метки
-        //     const stringMap = {};
-        //     let counter = 0;
-        //
-        //     expr = expr.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, match => {
-        //         const key = `__STR${counter++}__`;
-        //         stringMap[key] = match;
-        //         return key;
-        //     });
-        //
-        //     // 2. Заменяем все оставшиеся слова в сравнениях на строки
-        //     expr = expr.replace(/(==|!=|>=|<=|>|<)\s*([а-яА-ЯёЁa-zA-Z-]+)/g, '$1 "$2"');
-        //
-        //     // 3. Восстанавливаем оригинальные строки
-        //     for (const [key, value] of Object.entries(stringMap)) {
-        //         expr = expr.replace(key, value);
-        //     }
-        //
-        //     return expr;
-        // };
-        //
-        // const prepareVariables = (record, columns) => {
-        //     const variables = {};
-        //
-        //     columns.forEach((col, index) => {
-        //         let value = record[index];
-        //
-        //         // Обработка специальных случаев
-        //         if (value === undefined || value === null) {
-        //             value = '';
-        //         }
-        //
-        //         // Для строковых значений добавляем кавычки
-        //         if (typeof value === 'string' && !value.match(/^\d+$/) && !value.startsWith('"') && !value.startsWith("'")) {
-        //             value = `"${value}"`;
-        //         }
-        //
-        //         variables[col.name] = value;
-        //     });
-        //
-        //     return variables;
-        // };
-        //
-        // const validateExpression = (expr) => {
-        //     // Проверяем наличие незакавыченных слов
-        //     const unquotedWords = expr.match(/(==|!=|>=|<=|>|<)\s*([а-яА-ЯёЁa-zA-Z-]+)(?![^"']*["'])/g);
-        //     if (unquotedWords) {
-        //         throw new Error(`Незакавыченные значения: ${unquotedWords.join(', ')}`);
-        //     }
-        //
-        //     // Проверяем синтаксис тернарного оператора
-        //     if (expr.includes('?')) {
-        //         const parts = expr.split('?');
-        //         if (parts.length !== 2 || !parts[1].includes(':')) {
-        //             throw new Error('Некорректный тернарный оператор');
-        //         }
-        //     }
-        // };
-
-        // Функция для нормализации чисел с запятыми
         const normalizeNumbers = (expr) => {
             return expr.replace(/(\d+),(\d+)/g, "$1.$2");
         };
 
+        const parser = new Parser();
+        parser.functions = {
+            ...parser.functions,
+            SUM: (...args) => args.reduce((a, b) => a + b, 0),
+            AVG: (...args) => args.reduce((a, b) => a + b, 0) / args.length,
+            COUNT: (...args) => args.length,
+            MIN: (...args) => Math.min(...args),
+            MAX: (...args) => Math.max(...args),
+            STDDEV: (...args) => {
+                const avg = args.reduce((a, b) => a + b, 0) / args.length;
+                return Math.sqrt(args.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / args.length);
+            },
+            LOG: Math.log,
+            EXP: Math.exp,
+            SQRT: Math.sqrt,
+            POW: Math.pow,
+            ABS: Math.abs,
+            ROUND: (num, decimals) => Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals),
+            IF: (condition, trueVal, falseVal) => condition ? trueVal : falseVal,
+            CONCAT: (...args) => args.join(''),
+            YEAR: (dateStr) => {
+                if (!dateStr || typeof dateStr !== 'string') return null;
+                const [day, month, year] = dateStr.split('.');
+                return parseInt(year);
+            }
+        };
+
         customWhereColumns.forEach((column, iCol) => {
             if (column.fx) {
-                arrayData.forEach((record) => {
-                    try {
-                        const variables = {};
+                const aggMatch = column.fx.match(/^(SUM|AVG|COUNT|MIN|MAX|STDDEV)\(\[(.+?)\]\)/i);
+                const windowMatch = column.fx.match(/^MOVING_AVG\(\[(.+?)\],\s*(\d+)\)/i);
+                const corrMatch = column.fx.match(/^CORREL\(\[(.+?)\],\s*\[(.+?)\]\)/i);
 
-                        // 1. Сначала добавляем все стандартные переменные из столбцов
-                        customWhereColumns.forEach((col, index) => {
-                            let value = record[index];
-                            if (value === undefined || value === null) value = '';
-
-                            // Для дат преобразуем в timestamp
-                            if (typeof value === "string" && value.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                                value = parseDateToTimestamp(value);
-                            }
-
-                            // Для строк добавляем кавычки
-                            if (typeof value === 'string' && !value.match(/^".*"$|^'.*'$|^\d+$/)) {
-                                value = `"${value}"`;
-                            }
-
-                            variables[col.name] = value;
-                        });
-
-                        // 2. Добавляем yearsOfExperience для текущего столбца, если это дата
-                        const currentValue = record[iCol];
-                        if (currentValue && typeof currentValue === "string" && currentValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                            variables['yearsOfExperience'] = calculateYearsOfExperience(currentValue);
-                        }
-
-                        // 3. Подготавливаем выражение
-                        let preparedExpression = column.fx;
-
-                        // Автодобавление кавычек к строкам в условиях
-                        preparedExpression = preparedExpression.replace(
-                            /(\b[а-яА-ЯёЁa-zA-Z-]+\b)(?=\s*[=><!])/g,
-                            '"$1"'
-                        );
-
-                        // Обработка тернарного оператора
-                        preparedExpression = preparedExpression.replace(
-                            /\?\s*([а-яА-ЯёЁa-zA-Z-]+)\s*:/g,
-                            '? "$1" :'
-                        );
-                        preparedExpression = preparedExpression.replace(
-                            /:\s*([а-яА-ЯёЁa-zA-Z-]+)$/g,
-                            ': "$1"'
-                        );
-
-                        // Замена технических значений
-                        preparedExpression = replaceDatesInExpression(preparedExpression);
-                        preparedExpression = normalizeNumbers(preparedExpression);
-
-                        // 4. Подставляем переменные
-                        preparedExpression = preparedExpression.replace(
-                            /\[([^\]]+)]/g,
-                            (match, varName) => variables[varName] || '""'
-                        );
-
-                        // 5. Вычисляем результат
-                        const parser = new Parser();
-                        const expression = parser.parse(preparedExpression);
-                        const result = expression.evaluate(variables);
-
-                        // 6. Сохраняем результат
-                        record[iCol] = typeof result === 'boolean'
-                            ? (result ? "Да" : "Нет")
-                            : result;
-
-                    } catch (error) {
-                        console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
-                        record[iCol] = `Ошибка: ${error.message}`;
+                if (aggMatch) {
+                    const [_, func, colName] = aggMatch;
+                    const targetCol = customWhereColumns.findIndex(c => c.name === colName);
+                    if (targetCol >= 0) {
+                        const values = arrayData.map(row => row[targetCol]);
+                        const result = calculateAggregations(values, func);
+                        // Для COUNT заполняем все строки одинаковым значением
+                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
                     }
-                });
+                }
+                else if (windowMatch) {
+                    const [_, colName, windowSize] = windowMatch;
+                    const targetCol = customWhereColumns.findIndex(c => c.name === colName);
+                    if (targetCol >= 0) {
+                        const values = arrayData.map(row => row[targetCol]);
+                        const results = processTimeSeries(values, parseInt(windowSize));
+                        arrayData.forEach((row, i) => row[iCol] = results[i] !== null ? results[i] : 'N/A');
+                    }
+                }
+                else if (corrMatch) {
+                    const [_, colName1, colName2] = corrMatch;
+                    const targetCol1 = customWhereColumns.findIndex(c => c.name === colName1);
+                    const targetCol2 = customWhereColumns.findIndex(c => c.name === colName2);
+
+                    if (targetCol1 >= 0 && targetCol2 >= 0) {
+                        const values1 = arrayData.map(row => row[targetCol1]);
+                        const values2 = arrayData.map(row => row[targetCol2]);
+                        const result = calculateCorrelation(values1, values2);
+                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
+                    }
+                }
+                else {
+                    arrayData.forEach((record) => {
+                        try {
+                            const variables = {};
+                            customWhereColumns.forEach((col, index) => {
+                                let value = record[index];
+                                if (value === undefined || value === null) value = '';
+
+                                // Преобразуем строки с запятыми в числа с точками
+                                if (typeof value === 'string' && value.includes(',')) {
+                                    value = value.replace(',', '.');
+                                }
+
+                                // Парсим в число, если возможно
+                                const numValue = parseFloat(value);
+                                if (!isNaN(numValue)) {
+                                    value = numValue;
+                                }
+
+                                // Сохраняем оригинальное значение
+                                variables[col.name] = value;
+
+                                // Создаем версию в процентах (умножаем на 100)
+                                variables[`${col.name}_percent`] = typeof value === 'number' ? value * 100 : value;
+                            });
+
+                            let preparedExpression = column.fx;
+
+                            // Если в выражении есть символ %, используем _percent версию переменной
+                            if (preparedExpression.includes('%')) {
+                                preparedExpression = preparedExpression.replace(/\[([^\]]+)\]/g, '[$1_percent]');
+                                preparedExpression = preparedExpression.replace(/%/g, '');
+                            }
+
+                            // Обработка тернарного оператора
+                            if (preparedExpression.includes('?')) {
+                                preparedExpression = preparedExpression.replace(
+                                    /(.+?)\s*\?\s*(.+?)\s*:\s*(.+)/,
+                                    'IF($1, $2, $3)'
+                                );
+                            }
+
+                            preparedExpression = normalizeNumbers(preparedExpression);
+                            preparedExpression = replaceDatesInExpression(preparedExpression);
+
+                            // Заменяем ссылки на переменные
+                            preparedExpression = preparedExpression.replace(
+                                /\[([^\]]+)]/g,
+                                (match, varName) => variables[varName] || '""'
+                            );
+
+                            // Удаляем лишние пробелы вокруг операторов
+                            preparedExpression = preparedExpression.replace(/\s*([=><!+\-*/%])\s*/g, ' $1 ');
+
+                            const result = parser.parse(preparedExpression).evaluate(variables);
+                            record[iCol] = typeof result === 'boolean' ? (result ? "Да" : "Нет") : result;
+                        } catch (error) {
+                            console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
+                            record[iCol] = `Ошибка: ${error.message}`;
+                        }
+                    });
+                }
             }
 
-            // Обработка условий WHERE (остаётся без изменений)
             if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
                 const { operator = dataWhereColumns[0], value } = column.where;
-
                 arrayData.forEach((record) => {
                     try {
                         let recordValue = record[iCol];
                         let compareValue = value;
 
+                        // Обработка дат
                         if (typeof recordValue === 'string' && recordValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
                             recordValue = parseDateToTimestamp(recordValue);
                         }
@@ -382,6 +488,27 @@ const ReportCreation = ({ idReport }) => {
                             compareValue = parseDateToTimestamp(compareValue);
                         }
 
+                        // Обработка чисел и процентов
+                        if (typeof recordValue === 'string') {
+                            recordValue = recordValue.replace(',', '.');
+                        }
+                        if (typeof compareValue === 'string') {
+                            compareValue = compareValue.replace(',', '.');
+                        }
+
+                        // Если значение - процент в условии (например, "97%")
+                        if (typeof compareValue === 'string' && compareValue.endsWith('%')) {
+                            const percentValue = parseFloat(compareValue.replace('%', '')) / 100;
+                            compareValue = !isNaN(percentValue) ? percentValue : compareValue;
+                        }
+
+                        // Парсим числа
+                        const numRecordValue = parseFloat(recordValue);
+                        const numCompareValue = parseFloat(compareValue);
+                        if (!isNaN(numRecordValue)) recordValue = numRecordValue;
+                        if (!isNaN(numCompareValue)) compareValue = numCompareValue;
+
+                        // Обработка строк
                         if (typeof recordValue === 'string' && !recordValue.match(/^".*"$|^'.*'$/)) {
                             recordValue = `"${recordValue}"`;
                         }
@@ -393,7 +520,6 @@ const ReportCreation = ({ idReport }) => {
                         conditionExpr = replaceDatesInExpression(conditionExpr);
                         conditionExpr = normalizeNumbers(conditionExpr);
 
-                        const parser = new Parser();
                         const condition = parser.parse(conditionExpr).evaluate();
 
                         if (condition) {
@@ -415,11 +541,45 @@ const ReportCreation = ({ idReport }) => {
         const bearerToken = localStorage.getItem('api_token');
         const newDataReport = filterDataReport();
 
+        const formattedData = newDataReport.map(row => {
+            const newRow = {...row};
+            customWhereColumns.forEach((col, index) => {
+                if (col.type === 'date' || (col.name && col.name.toLowerCase().includes('date'))) {
+                    if (typeof newRow[index] === 'number') {
+                        // Преобразуем Excel serial number в дату
+                        const date = excelSerialToDate(newRow[index]);
+                        if (date) {
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const year = date.getFullYear();
+                            newRow[index] = `${day}.${month}.${year}`;
+                        }
+                    } else if (newRow[index] && typeof newRow[index] === 'string' && newRow[index].match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+                        // Дата уже в правильном формате, оставляем как есть
+                    } else if (newRow[index]) {
+                        // Пытаемся преобразовать другие форматы дат
+                        const date = new Date(newRow[index]);
+                        if (!isNaN(date.getTime())) {
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const year = date.getFullYear();
+                            newRow[index] = `${day}.${month}.${year}`;
+                        }
+                    }
+                }
+            });
+            return newRow;
+        });
+
         const dataForm = {
             format: selectedExtension,
             name,
-            headers: customWhereColumns,
-            data: newDataReport.length > 0 ? newDataReport : dataReport
+            headers: customWhereColumns.map(col => ({
+                ...col,
+                // Указываем тип данных для колонок с датами
+                type: (col.name && col.name.toLowerCase().includes('date')) ? 'date' : col.type
+            })),
+            data: formattedData.length > 0 ? formattedData : dataReport
         };
 
         fetch(`${API_URL}/api/report/export/${currentReportId}/preview`, {
@@ -449,54 +609,16 @@ const ReportCreation = ({ idReport }) => {
 
     const handleChangeToReport = () => {
         const bearerToken = localStorage.getItem('api_token');
-
         filterDataReport();
-
-        const updatedColumns = [...customWhereColumns];
-
-        updatedColumns.forEach((column, iCol) => {
-            if (column.fx) {
-                if (column.fx.includes('yearsOfExperience')) {
-                    const dateColumnIndex = customWhereColumns.findIndex(col => col.type === "date");
-
-                    if (dateColumnIndex !== -1) {
-                        const updatedReport = [...dataReport];
-
-                        updatedReport.forEach((record) => {
-                            try {
-                                const dateStartValue = record[dateColumnIndex]; // Предположим, что это дата контракта
-
-                                if (dateStartValue) {
-                                    const currentDate = new Date();
-                                    const startDate = new Date(dateStartValue);
-                                    const yearsOfExperience = currentDate.getFullYear() - startDate.getFullYear();
-
-                                    // Вычисляем стаж
-                                    record[iCol] = yearsOfExperience > 0 ? yearsOfExperience : 0;
-                                }
-                            } catch (error) {
-                                console.error(`Ошибка при вычислении стажа для записи:`, error);
-                            }
-                        });
-
-                        setDataReport(updatedReport);
-                    } else {
-                        console.warn('Не удается найти столбец с датой.');
-                    }
-                }
-            }
-        });
 
         const dataForm = {
             id: currentReportId,
             category_id: selectedCategory,
             name,
             extension: selectedExtension,
-            headers: updatedColumns,
+            headers: customWhereColumns,
             whereData: newDataReport.length > 0 ? newDataReport : dataReport,
         };
-
-        console.log('Обновленные данные отчета:', dataForm);
 
         fetch(`${API_URL}/api/report`, {
             method: 'PATCH',
@@ -510,18 +632,18 @@ const ReportCreation = ({ idReport }) => {
             .then((data) => {
                 if (data.success) {
                     toast.success("Отчет успешно обновлен", { position: "top-right" });
+                    setOriginalName(name);
                 } else {
                     toast.error(`Ошибка: ${JSON.stringify(data)}`, { position: "top-right" });
                 }
             });
     };
+
     const handleDragEnd = (result) => {
         if (!result.destination) return;
-
         const items = Array.from(customWhereColumns);
         const [reorderedItem] = items.splice(result.source.index, 1);
         items.splice(result.destination.index, 0, reorderedItem);
-
         setCustomWhereColumns(items);
     };
 
@@ -535,8 +657,17 @@ const ReportCreation = ({ idReport }) => {
             </div>
         );
     }
+
     return (
         <div className={styles.container}>
+            {showFormulaModal && (
+                <FormulaEditorModal
+                    formula={customWhereColumns[editingFormulaIndex]?.fx || ''}
+                    onSave={handleSaveFormula}
+                    onClose={() => setShowFormulaModal(false)}
+                />
+            )}
+
             <div className={styles.box}>
                 <input
                     type="text"
@@ -675,18 +806,28 @@ const ReportCreation = ({ idReport }) => {
                                                 />
                                             )}
                                             {column.type === "fx" && column.where && (
-                                                <input
-                                                    type="text"
-                                                    className={styles.inpt_js}
-                                                    value={column.fx ?? ''}
-                                                    onChange={(e) => {
-                                                        handleColumnChange(index, "fx", e.target.value);
-                                                    }}
-                                                    placeholder='Пример: [professiya] == "Web-разработчик" ? "Да" : "Нет"'
-                                                    title="Формат: [поле] оператор 'значение' ? 'если_да' : 'если_нет'"
-                                                    onDoubleClick={() => navigator.clipboard.writeText(`[${column.name}]`)}
-                                                />
+                                                <div className={styles.formulaInputContainer}>
+                                                    <input
+                                                        type="text"
+                                                        className={styles.inpt_js}
+                                                        value={column.fx ?? ''}
+                                                        onClick={() => handleFormulaClick(index)}
+                                                        onChange={(e) => handleColumnChange(index, "fx", e.target.value)}
+                                                        placeholder='Пример: [professiya] == "Web-разработчик" ? "Да" : "Нет"'
+                                                    />
+                                                    <button
+                                                        className={styles.copyButton}
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`[${column.name}]`);
+                                                            toast.success(`Скопировано: [${column.name}]`, { position: "top-right" });
+                                                        }}
+                                                        title="Копировать имя столбца"
+                                                    >
+                                                        <img width="20" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA6ElEQVR4nO2WUQ6DIAyGedqhNnc9ddea2U3UW/z8CwlsjIBYwnyRJn2oxH7yl0qVEhrJC4AHgBXAAmAwz9S/DcCotabvAPojwIuBkbySvFnwUiU5PTnD3Tk3UAeOuS3DKCoDInKWujkDEvBHznAtBYio1onLoBPJ7EdNkV09pXlUlRcS1sBZa1I7A/Ayp3pvHCqHYH231OYlv3VycQQ8pVpvE3y+dkKuRpk8qFXjAvDUavxjrcaHtRO+E0hXCiV5t0PCLAEPFWeufncf2ylzcDsvBM4G6k+ZEP4HTmwQ3se5WAIW3cdb8RsttbBVCsntVwAAAABJRU5ErkJggg==" alt="copy-2"/>
+                                                    </button>
+                                                </div>
                                             )}
+
                                             <button onClick={() => handleDeleteColumn(index)}>Удалить</button>
                                         </div>
                                     )}
@@ -698,7 +839,9 @@ const ReportCreation = ({ idReport }) => {
                 </Droppable>
             </DragDropContext>
 
-            <button onClick={handleChangeToReport} className={styles.addToReportBtn}>Изменить отчет</button>
+            <button onClick={handleChangeToReport} className={styles.addToReportBtn}>
+                Сохранить изменения
+            </button>
         </div>
     );
 };

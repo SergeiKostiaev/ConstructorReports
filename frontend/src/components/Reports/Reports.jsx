@@ -51,15 +51,14 @@ const Reports = ({ onReportSelect }) => {
         selectedExtension,
         statuses,
         extensions,
+        newReportLoaded
     } = useSelector((state) => state.reports);
 
     const correctServerDate = (dateString) => {
-        // Если дата пришла как число (Excel serial)
         if (typeof dateString === 'number') {
             return formatExcelSerialDate(dateString) + ' в 00:00';
         }
 
-        // Если дата уже в правильном строковом формате
         if (dateString && dateString.includes(' в ')) {
             try {
                 const [datePart, timePart] = dateString.split(' в ');
@@ -90,6 +89,13 @@ const Reports = ({ onReportSelect }) => {
         dispatch(fetchUsers());
         dispatch(fetchReports());
     }, [dispatch]);
+
+    // Обновляем список отчетов при успешной загрузке нового
+    useEffect(() => {
+        if (newReportLoaded) {
+            dispatch(fetchReports());
+        }
+    }, [newReportLoaded, dispatch]);
 
     useEffect(() => {
         dispatch(filterReports());
@@ -298,7 +304,7 @@ const Reports = ({ onReportSelect }) => {
                             <td>{report.creator}</td>
                             <td>{report.category}</td>
                             <td>
-                                <span className={`${styles.status} ${styles[report.status?.name?.toLowerCase().replace(/\s/g, '')]}`}>
+                                <span className={`${styles.status} ${styles[report.status?.toLowerCase().replace(/\s/g, '')]}`}>
                                   {report.status || "—"}
                                 </span>
                             </td>

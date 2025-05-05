@@ -175,6 +175,29 @@
     padding: 10px
     border-radius: 8px
 
+    .formulaInputContainer
+      display: flex
+      align-items: center
+      width: 100%
+      position: relative
+
+    .inpt_js
+      //flex: 1
+      margin-right: 5px
+
+    .copyButton
+      background: none
+      border: none
+      cursor: pointer
+      padding: 5px
+      font-size: 14px
+      color: idx.$text-color
+      transition: 0.2s ease-in-out
+
+    .copyButton
+      margin-right: 5px
+      background-color: #dc3545
+
     .slct_column
       font-family: 'Montserrat', sans-serif
       border: 3px solid idx.$border
@@ -279,7 +302,7 @@
 
     .formulaEditorContent
       background-color: idx.$main-bg
-      padding: 12px
+      padding: 20px
       border-radius: 8px
       width: 80%
       max-width: 800px
@@ -288,6 +311,26 @@
 
       h3
         color: idx.$text-color
+        margin-bottom: 15px
+
+      .formulaTextarea
+        width: 100%
+        min-height: 150px
+        padding: 10px
+        border: 2px solid idx.$border
+        border-radius: 4px
+        font-family: monospace
+        font-size: 14px
+        margin-bottom: 15px
+        resize: vertical
+
+      .exampleToggle
+        background-color: idx.$main-btn
+        color: white
+        border: none
+        border-radius: 4px
+        padding: 8px 12px
+        cursor: pointer
         margin-bottom: 15px
 
       .formulaExamples
@@ -328,11 +371,11 @@
           transition: background-color 0.3s
 
           &:first-child
-            background-color: idx.$main-btn
+            background-color: #6c757d
             color: white
 
           &:last-child
-            background-color: #6c757d
+            background-color: idx.$main-btn
             color: white
 
           &:hover
@@ -354,7 +397,6 @@
     cursor: grabbing
 
 [data-rbd-draggable-id]:not([data-rbd-drag-placeholder])
-  //background-color: idx.$main-bg
   border: 1px dashed idx.$border
   margin-bottom: 8px
   border-radius: 4px

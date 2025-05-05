@@ -17,6 +17,8 @@ import * as XLSX from 'xlsx';
 import { useSelector, useDispatch } from "react-redux";
 import { addNewReport, fetchReports } from '../features/reportsSlice';
 
+import Logo from '/logo.svg';
+
 const API_URL = import.meta.env.VITE_API_URL;
 
 const Home = () => {
@@ -130,7 +132,7 @@ const Home = () => {
 
         // Оптимистичное добавление отчета
         const tempReport = {
-            id: Date.now(),
+            id: Date.now(), // временный ID
             name: fileName,
             created_at: new Date().toLocaleString('ru-RU'),
             updated_at: new Date().toLocaleString('ru-RU'),
@@ -142,6 +144,9 @@ const Home = () => {
         dispatch(addNewReport(tempReport));
 
         try {
+            let response;
+            let result;
+
             // Для Excel и OpenDocument файлов (XLSX/XLS/ODS)
             if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'ods') {
                 const reader = new FileReader();
@@ -154,8 +159,7 @@ const Home = () => {
                         // Преобразуем числовые даты в строки
                         jsonData.forEach(row => {
                             Object.entries(row).forEach(([key, value]) => {
-                                // Проверяем только колонки с "дата" в названии
-                                if (key.toLowerCase().includes('дата') && typeof value === 'number' && value > 0) {
+                                if (typeof value === 'number' && value > 30000 && value < 60000) {
                                     const parsedDate = XLSX.SSF.parse_date_code(value);
                                     if (parsedDate) {
                                         const day = String(parsedDate.d).padStart(2, '0');
@@ -172,48 +176,66 @@ const Home = () => {
                         const newWorkbook = XLSX.utils.book_new();
                         XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, workbook.SheetNames[0]);
 
-                        // Определяем тип файла для сохранения
-                        const bookType = fileType === 'ods' ? 'ods' : 'xlsx';
-
                         // Создаем Blob из workbook
-                        const wbout = XLSX.write(newWorkbook, { bookType, type: 'array' });
+                        const wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
                         const modifiedFile = new Blob([wbout], { type: file.type });
 
                         const formData = new FormData();
                         formData.append("file", new File([modifiedFile], file.name, { type: file.type }));
 
-                        const response = await fetch(`${API_URL}/api/report/import`, {
+                        response = await fetch(`${API_URL}/api/report/import`, {
                             method: 'POST',
                             headers: { Authorization: `Bearer ${bearerToken}` },
                             body: formData,
                         });
 
-                        const responseText = await response.text();
+                        // Обработка ответа сервера
                         try {
-                            const result = JSON.parse(responseText);
-                            console.log("Результат от сервера (XLSX/ODS/CSV):", result);
+                            const responseText = await response.text();
+                            result = responseText ? JSON.parse(responseText) : {};
 
-                            if (result.success) {
-                                toast.success("Отчет успешно импортирован", { position: "top-right" });
+                            if (response.ok && result.success) {
+                                toast.success("Отчет успешно импортирован");
                                 dispatch(fetchReports());
                             } else {
-                                toast.error(`Ошибка: ${JSON.stringify(result)}`, { position: "top-right" });
+                                toast.error(result.message || "Ошибка при импорте отчета");
                             }
-                        } catch (err) {
-                            console.error("Сервер вернул не JSON:", responseText);
-                            toast.error("Сервер вернул неожиданный ответ", { position: "top-right" });
+                        } catch (jsonError) {
+                            console.error("Ошибка парсинга JSON:", jsonError);
+                            toast.error("Сервер вернул неожиданный ответ");
                         }
                     } catch (error) {
-                        console.error("Ошибка при отправке файла:", error);
-                        toast.error(`Ошибка при отправке ${fileType.toUpperCase()} файла`, { position: "top-right" });
+                        console.error("Ошибка при обработке Excel файла:", error);
+                        toast.error("Ошибка при обработке Excel файла");
                     }
                 };
                 reader.readAsBinaryString(file);
+                return; // Выходим из функции, так как обработка асинхронная
             } else {
                 // Для CSV/JSON файлов загружаем как есть
                 const formData = new FormData();
                 formData.append("file", file);
-                await uploadFile(formData, bearerToken);
+                response = await fetch(`${API_URL}/api/report/import`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${bearerToken}` },
+                    body: formData,
+                });
+            }
+
+            // Обработка ответа сервера для не-Excel файлов
+            try {
+                const responseText = await response.text();
+                result = responseText ? JSON.parse(responseText) : {};
+
+                if (response.ok && result.success) {
+                    toast.success("Отчет успешно импортирован");
+                    dispatch(fetchReports());
+                } else {
+                    toast.error(result.message || "Ошибка при импорте отчета");
+                }
+            } catch (jsonError) {
+                console.error("Ошибка парсинга JSON:", jsonError);
+                toast.error("Сервер вернул неожиданный ответ");
             }
         } catch (error) {
             console.error("Ошибка загрузки:", error);
@@ -252,7 +274,8 @@ const Home = () => {
             <div className={styles.container__wrap}>
                 <div className={styles.header}>
                     <div className={styles.header__btn}>
-                        <h1>Конструктор отчетов</h1>
+                        {/*<h1>Конструктор отчетов</h1>*/}
+                        <img src={Logo} alt="Logo" width={115}/>
                         {isConfirmed && (
                             <div className={styles.header__itemBtn} style={{ position: 'relative' }}>
                                 <p>Импортировать отчет</p>

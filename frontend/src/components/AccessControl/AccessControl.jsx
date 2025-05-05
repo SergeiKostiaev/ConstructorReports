@@ -337,9 +337,11 @@ const AccessControl = () => {
                                                 <img src={agree} alt="Разрешить" width={18} height={18} />
                                             </button>
                                         )}
-                                        <button className={styles.editButton} onClick={() => handleEditUser(user)}>
-                                            <img src={editIcon} alt="Редактировать" />
-                                        </button>
+                                        {isSuperAdmin &&
+                                            <button className={styles.editButton} onClick={() => handleEditUser(user)}>
+                                                <img src={editIcon} alt="Редактировать" />
+                                            </button>
+                                        }
                                         <button className={styles.denyButton} onClick={() => handleAccessChange(user.id, false)}>
                                             <img src={close} alt="Отклонить" />
                                         </button>
