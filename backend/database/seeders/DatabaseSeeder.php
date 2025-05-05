@@ -36,6 +36,9 @@ class DatabaseSeeder extends Seeder
         ]);
 
         Category::create([
+            'name' => 'Загруженные отчеты'
+        ]);
+        Category::create([
             'name' => 'Отчеты по проектам'
         ]);
         Category::create([
@@ -58,7 +61,7 @@ class DatabaseSeeder extends Seeder
             'confirmed' => 1,
             'name' => 'Adminov Manager',
             'email' => 'admin@example.com',
-            'password' => Hash::make("1234"),
+            'password' => Hash::make("Test2025"),
         ]);
 
         User::create([
@@ -66,7 +69,7 @@ class DatabaseSeeder extends Seeder
             'confirmed' => 1,
             'name' => 'Superov Admin',
             'email' => 'super_admin@example.com',
-            'password' => Hash::make("1234"),
+            'password' => Hash::make("Test2025"),
         ]);
 
         // User::factory(10)->create();
