@@ -9,10 +9,10 @@ class CategoryController extends Controller
 {
     public function list() {
         $categories = Category::all(['id', 'name'])->toArray();
-        array_unshift($categories, [
-            'id' => null,
-            'name' => 'Загруженные отчеты'
-        ]);
+//        array_unshift($categories, [
+//            'id' => null,
+//            'name' => 'Загруженные отчеты'
+//        ]);
         return success($categories);
     }
 }

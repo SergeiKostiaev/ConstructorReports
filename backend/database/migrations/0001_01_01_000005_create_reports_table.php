@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('reports', function (Blueprint $table) {
             $table->id()->unsigned();
             $table->foreignId('status_id')->unsigned()->default(1)->constrained('statuses');
-            $table->foreignId('category_id')->nullable()->unsigned()->constrained('categories');
+            $table->foreignId('category_id')->unsigned()->default(1)->constrained('categories');
             $table->string('name');
             $table->string('extension');
             $table->boolean('basket')->nullable();

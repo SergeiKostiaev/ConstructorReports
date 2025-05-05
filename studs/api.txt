@@ -161,13 +161,13 @@ GET /api/categories
 {
     "success": true,
     "data": [
-        {
-            "id": null,
-            "name": "Загруженные отчеты"
-        },
+        //{
+        //    "id": null,
+        //    "name": "Все отчеты"
+        //},
         {
             "id": 1,
-            "name": "Все отчеты"
+            "name": "Загруженные отчеты"
         },
         {
             "id": 2,
@@ -517,7 +517,7 @@ GET /api/report/{id}
     "data": {
         "id": 3,
         "status_id" : 1,
-        "category_id": null,
+        "category_id": 1,
         "name": "test1",
         "extension": "json",
         "user_id": 3,

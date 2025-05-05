@@ -78,7 +78,7 @@ class ReportController extends Controller
 
         $validateFail = validateFailed($data, [
             'id' => 'required|integer|exists:reports',
-            'category_id' => 'nullable|integer|exists:categories,id',
+            'category_id' => 'required|integer|exists:categories,id',
             'name' => 'nullable|string|max:255',
             'extension' => 'nullable|string|max:255|in:' . implode(',', Report::$allowedExtensions),
             'headers' => 'nullable|array',
@@ -119,7 +119,7 @@ class ReportController extends Controller
         $data = $request->all();
 
         $validateFail = validateFailed($data, [
-            'category_id' => 'nullable|integer|exists:categories,id',
+            'category_id' => 'required|integer|exists:categories,id',
             'name' => 'required|string|max:255',
             'extension' => 'required|string|max:255|in:' . implode(',', Report::$allowedExtensions),
             'headers' => 'required|array',
