@@ -154,18 +154,41 @@ const Home = () => {
                     try {
                         const workbook = XLSX.read(event.target.result, { type: 'binary' });
                         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true });
 
-                        // Преобразуем числовые даты в строки
+                        // Получаем исходные данные без преобразования
+                        const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: null });
+
+                        // Определяем формат ячеек для выявления настоящих дат
+                        const cellFormats = {};
+                        if (workbook.SSF) {
+                            Object.keys(sheet).forEach(cellAddress => {
+                                if (sheet[cellAddress].z) {
+                                    cellFormats[cellAddress] = sheet[cellAddress].z;
+                                }
+                            });
+                        }
+
+                        // Преобразуем только ячейки с форматами дат
+                        const dateFormats = ['dd.mm.yyyy', 'dd-mm-yyyy', 'd.m.yy', 'd-m-yy', 'm/d/yy', 'mm/dd/yy'];
+
                         jsonData.forEach(row => {
                             Object.entries(row).forEach(([key, value]) => {
-                                if (typeof value === 'number' && value > 30000 && value < 60000) {
-                                    const parsedDate = XLSX.SSF.parse_date_code(value);
-                                    if (parsedDate) {
-                                        const day = String(parsedDate.d).padStart(2, '0');
-                                        const month = String(parsedDate.m).padStart(2, '0');
-                                        const year = String(parsedDate.y);
-                                        row[key] = `${day}.${month}.${year}`;
+                                if (typeof value === 'number') {
+                                    // Проверяем, является ли это датой Excel (значения между 1900-01-01 и 2100-01-01)
+                                    if (value > 0 && value < 50000) {
+                                        const cellRef = XLSX.utils.encode_cell({ c: XLSX.utils.decode_col(key), r: row.__rowNum__ });
+                                        const cellFormat = cellFormats[cellRef];
+
+                                        // Если у ячейки есть формат даты или значение выглядит как дата
+                                        if (cellFormat && dateFormats.some(fmt => cellFormat.includes(fmt))) {
+                                            const parsedDate = XLSX.SSF.parse_date_code(value);
+                                            if (parsedDate) {
+                                                const day = String(parsedDate.d).padStart(2, '0');
+                                                const month = String(parsedDate.m).padStart(2, '0');
+                                                const year = String(parsedDate.y);
+                                                row[key] = `${day}.${month}.${year}`;
+                                            }
+                                        }
                                     }
                                 }
                             });
@@ -210,7 +233,7 @@ const Home = () => {
                     }
                 };
                 reader.readAsBinaryString(file);
-                return; // Выходим из функции, так как обработка асинхронная
+                return;
             } else {
                 // Для CSV/JSON файлов загружаем как есть
                 const formData = new FormData();

@@ -35,7 +35,7 @@ const Analytics = () => {
     const [error, setError] = useState(null);
     const [chartType, setChartType] = useState("bar");
     const [yAxisType, setYAxisType] = useState("linear");
-    const [fullscreenChart, setFullscreenChart] = useState(null); // Добавлено состояние для полного экрана
+    const [fullscreenChart, setFullscreenChart] = useState(null);
 
     const handleChartTypeChange = (event) => {
         setChartType(event.target.value);
@@ -45,12 +45,10 @@ const Analytics = () => {
         setYAxisType(event.target.value);
     };
 
-    // Функция для открытия графика в полный экран
     const openFullscreenChart = (chartData, isTextChart = false) => {
         setFullscreenChart({ data: chartData, isTextChart });
     };
 
-    // Функция для закрытия полного экрана
     const closeFullscreenChart = () => {
         setFullscreenChart(null);
     };
@@ -103,22 +101,55 @@ const Analytics = () => {
             const numericColumns = [];
             const textColumns = [];
 
-            report.headers.forEach((header, index) => {
-                const isNumeric = report.data.some(item => {
-                    const numValue = Number(item[index]);
-                    return !isNaN(numValue) && item[index] !== null && item[index] !== '';
+            // Проверяем все возможные колонки (из headers и из данных)
+            const allPossibleColumns = new Set();
+
+            // Добавляем колонки из headers
+            report.headers.forEach(header => {
+                allPossibleColumns.add(header.name);
+            });
+
+            // Добавляем колонки из данных (для новых колонок)
+            report.data.forEach(row => {
+                Object.keys(row).forEach(key => {
+                    if (!isNaN(key)) return; // Пропускаем числовые индексы
+                    allPossibleColumns.add(key);
                 });
+            });
+
+            // Проверяем тип данных для каждой колонки
+            Array.from(allPossibleColumns).forEach(columnName => {
+                let isNumeric = false;
+
+                // Пытаемся найти колонку в headers
+                const headerIndex = report.headers.findIndex(h => h.name === columnName);
+
+                if (headerIndex !== -1) {
+                    // Колонка есть в headers, проверяем данные
+                    isNumeric = report.data.some(item => {
+                        const numValue = Number(item[headerIndex]);
+                        return !isNaN(numValue) && item[headerIndex] !== null && item[headerIndex] !== '';
+                    });
+                } else {
+                    // Новая колонка, проверяем данные по имени
+                    isNumeric = report.data.some(item => {
+                        const value = item[columnName];
+                        if (value === undefined || value === null) return false;
+                        const numValue = Number(value);
+                        return !isNaN(numValue) && value !== '';
+                    });
+                }
 
                 if (isNumeric) {
-                    numericColumns.push(header.name);
+                    numericColumns.push(columnName);
                 } else {
-                    textColumns.push(header.name);
+                    textColumns.push(columnName);
                 }
             });
 
             setLocalColumns(numericColumns);
             setTextColumns(textColumns);
-            setDisplayedColumns(numericColumns.slice(0, 3));
+            setDisplayedColumns(numericColumns.slice(0, Math.min(3, numericColumns.length)));
             if (textColumns.length > 0) {
                 setDisplayedTextColumns([textColumns[0]]);
             }
@@ -128,10 +159,33 @@ const Analytics = () => {
     useEffect(() => {
         if (selectedReports.length > 0 && displayedColumns.length > 0) {
             const newChartDatasets = selectedReports.map((report) => {
-                const labels = report.data.map(item => item[0]);
+                // Первая колонка всегда будет labels
+                const labels = report.data.map(item => {
+                    // Пытаемся получить первый столбец из headers или по индексу 0
+                    if (report.headers.length > 0) {
+                        return item[0] || '';
+                    }
+                    return '';
+                });
+
                 const datasets = displayedColumns.map((column, index) => {
-                    const columnIndex = report.headers.findIndex(header => header.name === column);
-                    const data = report.data.map(item => item[columnIndex]);
+                    // Пытаемся найти индекс колонки в headers
+                    const headerIndex = report.headers.findIndex(header => header.name === column);
+
+                    let data;
+                    if (headerIndex !== -1) {
+                        // Колонка есть в headers, берем данные по индексу
+                        data = report.data.map(item => {
+                            const value = item[headerIndex];
+                            return value !== null && value !== '' ? Number(value) : null;
+                        }).filter(val => val !== null);
+                    } else {
+                        // Новая колонка, ищем данные по имени
+                        data = report.data.map(item => {
+                            const value = item[column];
+                            return value !== null && value !== '' && value !== undefined ? Number(value) : null;
+                        }).filter(val => val !== null);
+                    }
 
                     return {
                         label: column,
@@ -151,12 +205,22 @@ const Analytics = () => {
             const newTextChartDatasets = selectedReports.flatMap(report => {
                 return displayedTextColumns.map(column => {
                     const textCount = {};
-                    const columnIndex = report.headers.findIndex(header => header.name === column);
+
+                    // Пытаемся найти индекс колонки в headers
+                    const headerIndex = report.headers.findIndex(header => header.name === column);
 
                     report.data.forEach(item => {
-                        const textValue = item[columnIndex];
-                        if (typeof textValue === 'string') {
-                            textCount[textValue] = (textCount[textValue] || 0) + 1;
+                        let textValue;
+                        if (headerIndex !== -1) {
+                            textValue = item[headerIndex];
+                        } else {
+                            // Новая колонка, ищем по имени
+                            textValue = item[column];
+                        }
+
+                        if (typeof textValue === 'string' || (textValue !== null && textValue !== undefined)) {
+                            const strValue = String(textValue);
+                            textCount[strValue] = (textCount[strValue] || 0) + 1;
                         }
                     });
 
@@ -274,8 +338,7 @@ const Analytics = () => {
     };
 
     return (
-        <div>
-            {/* Модальное окно для полного экрана */}
+        <div className={styles.container}>
             {fullscreenChart && (
                 <div className={styles.fullscreenModal} onClick={closeFullscreenChart}>
                     <div className={styles.fullscreenContent} onClick={e => e.stopPropagation()}>
@@ -308,8 +371,12 @@ const Analytics = () => {
             )}
 
             <div className={styles.reportSelection}>
-                <label>Выберите отчет:</label>
-                <select onChange={(e) => handleSelectReport(Number(e.target.value))} defaultValue="">
+                <label className={styles.label}>Выберите отчет:</label>
+                <select
+                    onChange={(e) => handleSelectReport(Number(e.target.value))}
+                    defaultValue=""
+                    className={styles.select}
+                >
                     <option value="" disabled>Выберите отчет</option>
                     {reports.filter(report => !report.isDeleted).map((report) => (
                         <option key={report.id} value={report.id}>{report.name}</option>
@@ -317,113 +384,147 @@ const Analytics = () => {
                 </select>
             </div>
 
-            {loading && <p>Загрузка...</p>}
-            {error && <p className={styles.error}>{error}</p>}
+            {loading && <div className={styles.loading}>Загрузка...</div>}
+            {error && <div className={styles.error}>{error}</div>}
 
             {selectedReports.length > 0 && (
-                <div>
-                    <h3>Выберите тип диаграммы:</h3>
-                    <div className={styles.radioGroup}>
-                        <label className={styles.radioContainer}>
-                            <input
-                                type="radio"
-                                value="bar"
-                                checked={chartType === "bar"}
-                                onChange={handleChartTypeChange}
-                                className={styles.radioInput}
-                            />
-                            <span className={styles.radioLabel}>Бар</span>
-                        </label>
-                        <label className={styles.radioContainer}>
-                            <input
-                                type="radio"
-                                value="doughnut"
-                                checked={chartType === "doughnut"}
-                                onChange={handleChartTypeChange}
-                                className={styles.radioInput}
-                            />
-                            <span className={styles.radioLabel}>Круговая</span>
-                        </label>
+                <div className={styles.controls}>
+                    <div className={styles.controlGroup}>
+                        <h3 className={styles.controlTitle}>Выберите тип диаграммы:</h3>
+                        <div className={styles.radioGroup}>
+                            <label className={styles.radioContainer}>
+                                <input
+                                    type="radio"
+                                    value="bar"
+                                    checked={chartType === "bar"}
+                                    onChange={handleChartTypeChange}
+                                    className={styles.radioInput}
+                                />
+                                <span className={styles.radioLabel}>Бар</span>
+                            </label>
+                            <label className={styles.radioContainer}>
+                                <input
+                                    type="radio"
+                                    value="doughnut"
+                                    checked={chartType === "doughnut"}
+                                    onChange={handleChartTypeChange}
+                                    className={styles.radioInput}
+                                />
+                                <span className={styles.radioLabel}>Круговая</span>
+                            </label>
+                        </div>
                     </div>
 
-                    <h3>Выберите тип шкалы для оси Y:</h3>
-                    <div className={styles.radioGroup}>
-                        <label className={styles.radioContainer}>
-                            <input
-                                type="radio"
-                                value="linear"
-                                checked={yAxisType === "linear"}
-                                onChange={handleYAxisTypeChange}
-                                className={styles.radioInput}
-                            />
-                            <span className={styles.radioLabel}>Линейная</span>
-                        </label>
-                        <label className={styles.radioContainer}>
-                            <input
-                                type="radio"
-                                value="logarithmic"
-                                checked={yAxisType === "logarithmic"}
-                                onChange={handleYAxisTypeChange}
-                                className={styles.radioInput}
-                            />
-                            <span className={styles.radioLabel}>Логарифмическая</span>
-                        </label>
+                    <div className={styles.controlGroup}>
+                        <h3 className={styles.controlTitle}>Выберите тип шкалы для оси Y:</h3>
+                        <div className={styles.radioGroup}>
+                            <label className={styles.radioContainer}>
+                                <input
+                                    type="radio"
+                                    value="linear"
+                                    checked={yAxisType === "linear"}
+                                    onChange={handleYAxisTypeChange}
+                                    className={styles.radioInput}
+                                />
+                                <span className={styles.radioLabel}>Линейная</span>
+                            </label>
+                            <label className={styles.radioContainer}>
+                                <input
+                                    type="radio"
+                                    value="logarithmic"
+                                    checked={yAxisType === "logarithmic"}
+                                    onChange={handleYAxisTypeChange}
+                                    className={styles.radioInput}
+                                />
+                                <span className={styles.radioLabel}>Логарифмическая</span>
+                            </label>
+                        </div>
                     </div>
 
-                    <h3>Выберите числовые столбцы:</h3>
-                    {localColumns.map((column) => (
-                        <button
-                            key={column}
-                            className={`${styles.columnButton} ${displayedColumns.includes(column) ? styles.selected : ''}`}
-                            onClick={() => handleToggleColumn(column)}
-                        >
-                            {column} {displayedColumns.includes(column) ? '✓' : ''}
-                        </button>
-                    ))}
+                    <div className={styles.controlGroup}>
+                        <h3 className={styles.controlTitle}>Выберите числовые столбцы:</h3>
+                        <div className={styles.columnsContainer}>
+                            {localColumns.map((column) => (
+                                <button
+                                    key={column}
+                                    className={`${styles.columnButton} ${displayedColumns.includes(column) ? styles.selected : ''}`}
+                                    onClick={() => handleToggleColumn(column)}
+                                >
+                                    {column} {displayedColumns.includes(column) ? '✓' : ''}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-                    <h3>Выберите текстовые столбцы:</h3>
-                    {textColumns.map((column) => (
-                        <button
-                            key={column}
-                            className={`${styles.columnButton} ${displayedTextColumns.includes(column) ? styles.selected : ''}`}
-                            onClick={() => handleToggleTextColumn(column)}
-                        >
-                            {column} {displayedTextColumns.includes(column) ? '✓' : ''}
-                        </button>
-                    ))}
+                    {textColumns.length > 0 && (
+                        <div className={styles.controlGroup}>
+                            <h3 className={styles.controlTitle}>Выберите текстовые столбцы:</h3>
+                            <div className={styles.columnsContainer}>
+                                {textColumns.map((column) => (
+                                    <button
+                                        key={column}
+                                        className={`${styles.columnButton} ${displayedTextColumns.includes(column) ? styles.selected : ''}`}
+                                        onClick={() => handleToggleTextColumn(column)}
+                                    >
+                                        {column} {displayedTextColumns.includes(column) ? '✓' : ''}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
             <div id="chartContainer" className={styles.chartContainer}>
                 {chartDatasets.map((chartData, index) => (
                     <div
-                        key={index}
-                        className={styles.chart}
+                        key={`chart-${index}`}
+                        className={styles.chartWrapper}
                         onClick={() => openFullscreenChart(chartData)}
                     >
-                        {chartType === "bar" ? (
-                            <Bar data={chartData} options={chartOptions} />
-                        ) : (
-                            <Doughnut data={chartData} options={chartOptions} />
-                        )}
+                        <h4 className={styles.chartTitle}>График данных</h4>
+                        <div className={styles.chart}>
+                            {chartType === "bar" ? (
+                                <Bar data={chartData} options={chartOptions} />
+                            ) : (
+                                <Doughnut data={chartData} options={chartOptions} />
+                            )}
+                        </div>
                     </div>
                 ))}
                 {textChartDatasets.map((chartData, index) => (
                     <div
-                        key={index}
-                        className={styles.chart}
+                        key={`text-chart-${index}`}
+                        className={styles.chartWrapper}
                         onClick={() => openFullscreenChart(chartData, true)}
                     >
-                        <Doughnut data={chartData} options={chartOptions} />
+                        <h4 className={styles.chartTitle}>График текстовых данных</h4>
+                        <div className={styles.chart}>
+                            <Doughnut data={chartData} options={chartOptions} />
+                        </div>
                     </div>
                 ))}
             </div>
 
-            <div className={styles.downloadButtons}>
-                <button onClick={() => handleDownloadChart('png')}>Скачать PNG</button>
-                <button onClick={() => handleDownloadChart('pdf')}>Скачать PDF</button>
-                <button onClick={() => handleDownloadChart('pptx')}>Скачать PPTX</button>
-            </div>
+            {(chartDatasets.length > 0 || textChartDatasets.length > 0) && (
+                <div className={styles.downloadButtons}>
+                    <button
+                        onClick={() => handleDownloadChart('png')}
+                    >
+                        Скачать PNG
+                    </button>
+                    <button
+                        onClick={() => handleDownloadChart('pdf')}
+                    >
+                        Скачать PDF
+                    </button>
+                    <button
+                        onClick={() => handleDownloadChart('pptx')}
+                    >
+                        Скачать PPTX
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
