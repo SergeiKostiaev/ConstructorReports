@@ -912,9 +912,9 @@ const ReportCreation = ({ idReport }) => {
                                             {...provided.dragHandleProps}
                                             className={styles.column}
                                         >
-                                            <span className={styles.dragHandle} {...provided.dragHandleProps}>
-                                                ☰
-                                            </span>
+                <span className={styles.dragHandle} {...provided.dragHandleProps}>
+                  ☰
+                </span>
                                             <span>{index + 1}.</span>
                                             <div className={styles.radioGroup}>
                                                 <label>
@@ -932,7 +932,8 @@ const ReportCreation = ({ idReport }) => {
                                                     /> f(x)
                                                 </label>
                                             </div>
-                                            {column.type === "a" && typeof column.name === "string" && !column.name.includes('new_column_') && (
+
+                                            {(typeof column.name === "string" && !column.name.includes('new_column_')) && (
                                                 <input
                                                     type="text"
                                                     className={styles.inpt_js}
@@ -941,7 +942,8 @@ const ReportCreation = ({ idReport }) => {
                                                     placeholder="Введите заголовок"
                                                 />
                                             )}
-                                            {column.name?.indexOf('new_column_') === 0 && (
+
+                                            {column.name?.includes('new_column_') && (
                                                 <input
                                                     type="text"
                                                     className={styles.inpt_js}
@@ -950,7 +952,8 @@ const ReportCreation = ({ idReport }) => {
                                                     placeholder="Введите заголовок"
                                                 />
                                             )}
-                                            {column.type === "fx" && column.where && (
+
+                                            {column.type === "fx" && (
                                                 <div className={styles.formulaInputContainer}>
                                                     <input
                                                         type="text"
@@ -958,7 +961,7 @@ const ReportCreation = ({ idReport }) => {
                                                         value={column.fx ?? ''}
                                                         onClick={() => handleFormulaClick(index)}
                                                         onChange={(e) => handleColumnChange(index, "fx", e.target.value)}
-                                                        placeholder='Пример: [professiya] == "Web-разработчик" ? "Да" : "Нет"'
+                                                        placeholder='Введите формулу или скопируйте поле'
                                                     />
                                                     <button
                                                         className={styles.copyButton}
@@ -974,7 +977,6 @@ const ReportCreation = ({ idReport }) => {
                                             )}
 
                                             <button onClick={() => handleDeleteColumn(index)}>
-
                                                 Удалить
                                             </button>
                                         </div>
