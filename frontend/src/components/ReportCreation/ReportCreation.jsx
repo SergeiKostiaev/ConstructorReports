@@ -151,14 +151,42 @@ const ReportCreation = ({ idReport }) => {
         const parser = new Parser();
         parser.functions.DATE = (dateStr) => parseDateValue(dateStr);
 
+        // Добавляем пользовательские функции
         parser.functions.DATEDIFF = (date1, date2) => {
             const d1 = parseDateValue(date1);
             const d2 = parseDateValue(date2);
             return (d1 - d2) / (1000 * 60 * 60 * 24); // Разница в днях
         };
 
+        parser.functions.CONTAINS = (str, substr) => {
+            if (typeof str !== 'string' || typeof substr !== 'string') return false;
+            return str.includes(substr);
+        };
+
+        parser.functions.MOVING_AVG = (values, windowSize) => {
+            if (!Array.isArray(values)) return null;
+            windowSize = parseInt(windowSize);
+            const results = [];
+            for (let i = 0; i < values.length; i++) {
+                const start = Math.max(0, i - windowSize + 1);
+                const window = values.slice(start, i + 1);
+                const nums = window.map(v => parseFloat(v)).filter(v => !isNaN(v));
+                results.push(nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : null);
+            }
+            return results;
+        };
+
+        parser.functions.CASE = (...args) => {
+            // Реализация CASE через вложенные IF
+            for (let i = 0; i < args.length - 1; i += 2) {
+                if (args[i]) return args[i + 1];
+            }
+            return args.length % 2 === 1 ? args[args.length - 1] : null;
+        };
+
         parser.functions = {
             ...parser.functions,
+            // Остальные стандартные функции
             SUM: (...args) => args.reduce((a, b) => a + b, 0),
             AVG: (...args) => args.reduce((a, b) => a + b, 0) / args.length,
             COUNT: (...args) => args.length,
@@ -189,24 +217,6 @@ const ReportCreation = ({ idReport }) => {
                     return null;
                 }
             },
-            MONTH: (dateStr) => {
-                try {
-                    const timestamp = parseDateValue(dateStr);
-                    return timestamp ? new Date(timestamp).getMonth() + 1 : null;
-                } catch (e) {
-                    console.error('Error in MONTH function:', e);
-                    return null;
-                }
-            },
-            DAY: (dateStr) => {
-                try {
-                    const timestamp = parseDateValue(dateStr);
-                    return timestamp ? new Date(timestamp).getDate() : null;
-                } catch (e) {
-                    console.error('Error in DAY function:', e);
-                    return null;
-                }
-            },
             TODAY: () => new Date().getTime(),
             NOW: () => Date.now(),
             COMPARE_DATES: (date1, date2, operator) => {
@@ -229,6 +239,27 @@ const ReportCreation = ({ idReport }) => {
                     console.error('Ошибка сравнения дат:', e);
                     return false;
                 }
+            },
+            CORREL: (values1, values2) => {
+                if (!Array.isArray(values1) || !Array.isArray(values2) || values1.length !== values2.length) return null;
+
+                const nums1 = values1.map(v => parseFloat(v)).filter(v => !isNaN(v));
+                const nums2 = values2.map(v => parseFloat(v)).filter(v => !isNaN(v));
+
+                if (nums1.length !== nums2.length || nums1.length === 0) return null;
+
+                const mean1 = nums1.reduce((a, b) => a + b, 0) / nums1.length;
+                const mean2 = nums2.reduce((a, b) => a + b, 0) / nums2.length;
+
+                let cov = 0, stddev1 = 0, stddev2 = 0;
+
+                for (let i = 0; i < nums1.length; i++) {
+                    cov += (nums1[i] - mean1) * (nums2[i] - mean2);
+                    stddev1 += Math.pow(nums1[i] - mean1, 2);
+                    stddev2 += Math.pow(nums2[i] - mean2, 2);
+                }
+
+                return cov / Math.sqrt(stddev1 * stddev2);
             }
         };
 
