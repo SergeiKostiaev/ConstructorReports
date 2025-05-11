@@ -100,41 +100,31 @@ const Analytics = () => {
             const numericColumns = [];
             const textColumns = [];
 
-            // Собираем все возможные колонки
-            const allColumns = new Set();
-
-            // Добавляем колонки из headers
-            report.headers.forEach(header => {
-                allColumns.add(header.name);
-            });
-
-            // Добавляем колонки из данных
-            report.data.forEach(row => {
-                Object.keys(row).forEach(key => {
-                    if (!isNaN(key)) return;
-                    allColumns.add(key);
-                });
-            });
+            // Собираем все возможные колонки из заголовков
+            const allColumns = report.headers.map(header => ({
+                name: header.name,
+                title: header.title || header.name
+            }));
 
             // Определяем тип колонок
-            Array.from(allColumns).forEach(columnName => {
+            allColumns.forEach(column => {
                 let isNumeric = report.data.some(row => {
-                    const value = row[columnName] ?? row[report.headers.findIndex(h => h.name === columnName)];
+                    const value = row[column.name] ?? row[report.headers.findIndex(h => h.name === column.name)];
                     if (value === null || value === undefined || value === '') return false;
                     return !isNaN(Number(value));
                 });
 
                 if (isNumeric) {
-                    numericColumns.push(columnName);
+                    numericColumns.push(column);
                 } else {
-                    textColumns.push(columnName);
+                    textColumns.push(column);
                 }
             });
 
             setLocalColumns(numericColumns);
             setTextColumns(textColumns);
-            setDisplayedColumns(numericColumns.slice(0, Math.min(3, numericColumns.length)));
-            setDisplayedTextColumns(textColumns.length > 0 ? [textColumns[0]] : []);
+            setDisplayedColumns(numericColumns.slice(0, Math.min(3, numericColumns.length)).map(c => c.name));
+            setDisplayedTextColumns(textColumns.length > 0 ? [textColumns[0].name] : []);
         }
     }, [selectedReports]);
 
@@ -220,10 +210,23 @@ const Analytics = () => {
             });
             const data = await response.json();
             if (response.ok && data.success) {
+                // Парсим заголовки столбцов
+                const parsedHeaders = Array.isArray(data.data.headers)
+                    ? data.data.headers.map(header => {
+                        if (typeof header === 'string') {
+                            return { name: header, title: header };
+                        }
+                        return {
+                            name: header.name || header.title || '',
+                            title: header.title || header.name || ''
+                        };
+                    })
+                    : [];
+
                 setSelectedReports([{
                     id: data.data.id,
                     name: data.data.name,
-                    headers: data.data.headers || [],
+                    headers: parsedHeaders, // Используем распарсенные заголовки
                     data: data.data.data || [],
                 }]);
             } else {
@@ -397,11 +400,12 @@ const Analytics = () => {
                         <div className={styles.columnsContainer}>
                             {localColumns.map(column => (
                                 <button
-                                    key={column}
-                                    className={`${styles.columnButton} ${displayedColumns.includes(column) ? styles.selected : ''}`}
-                                    onClick={() => handleToggleColumn(column)}
+                                    key={column.name}
+                                    className={`${styles.columnButton} ${displayedColumns.includes(column.name) ? styles.selected : ''}`}
+                                    onClick={() => handleToggleColumn(column.name)}
+                                    title={column.title !== column.name ? column.title : ''}
                                 >
-                                    {column} {displayedColumns.includes(column) ? '✓' : ''}
+                                    {column.title} {displayedColumns.includes(column.name) ? '✓' : ''}
                                 </button>
                             ))}
                         </div>
@@ -413,11 +417,12 @@ const Analytics = () => {
                             <div className={styles.columnsContainer}>
                                 {textColumns.map(column => (
                                     <button
-                                        key={column}
-                                        className={`${styles.columnButton} ${displayedTextColumns.includes(column) ? styles.selected : ''}`}
-                                        onClick={() => handleToggleTextColumn(column)}
+                                        key={column.name}
+                                        className={`${styles.columnButton} ${displayedTextColumns.includes(column.name) ? styles.selected : ''}`}
+                                        onClick={() => handleToggleTextColumn(column.name)}
+                                        title={column.title !== column.name ? column.title : ''}
                                     >
-                                        {column} {displayedTextColumns.includes(column) ? '✓' : ''}
+                                        {column.title} {displayedTextColumns.includes(column.name) ? '✓' : ''}
                                     </button>
                                 ))}
                             </div>
