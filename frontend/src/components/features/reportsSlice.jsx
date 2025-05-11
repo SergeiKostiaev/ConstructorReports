@@ -135,24 +135,42 @@ export const deleteReport = createAsyncThunk(
 // Восстановление отчета из корзины
 export const revertReport = createAsyncThunk(
     'reports/revertReport',
-    async (id, { rejectWithValue }) => {
+    async (id, { rejectWithValue, getState }) => {
         try {
+            // Получаем текущее состояние
+            const state = getState().reports;
+
+            // Находим отчет в хранилище Redux
+            const report = state.reports.find(r => r.id === id);
+
+            // Если отчет не найден
+            if (!report) {
+                return rejectWithValue('Отчет не найден');
+            }
+
+            // Определяем category_id (используем 1 как значение по умолчанию)
+            const categoryId = state.categories.find(c => c.name === report.category)?.id || 1;
+
             const response = await fetch(`${API_URL}/api/report`, {
                 method: 'PATCH',
                 headers: {
                     'Authorization': 'Bearer ' + localStorage.getItem('api_token'),
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ id, basket: null }),
+                body: JSON.stringify({
+                    id,
+                    category_id: categoryId, // Добавляем обязательное поле
+                    basket: null,
+                }),
             });
 
             const data = await response.json();
 
-            if (response.ok && data.success) {
-                return id;
-            } else {
+            if (!response.ok) {
                 return rejectWithValue(data.message || 'Не удалось восстановить отчет');
             }
+
+            return id;
         } catch (error) {
             return rejectWithValue(error.message);
         }
