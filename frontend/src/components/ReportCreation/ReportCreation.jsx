@@ -5,6 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { Parser } from 'expr-eval';
 import screp from '../../assets/screp.svg';
 import {DragDropContext, Draggable, Droppable} from "react-beautiful-dnd";
+import del from '../../assets/del.svg';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -21,21 +22,18 @@ const FormulaEditorModal = ({ formula, onSave, onClose }) => {
         <div className={styles.formulaEditorModal}>
             <div className={styles.formulaEditorContent}>
                 <h3>Редактор формул</h3>
-
                 <textarea
                     value={currentFormula}
                     onChange={(e) => setCurrentFormula(e.target.value)}
                     className={styles.formulaTextarea}
                     placeholder="Введите формулу..."
                 />
-
                 <button
                     className={styles.exampleToggle}
                     onClick={() => setShowExamples(!showExamples)}
                 >
                     {showExamples ? 'Скрыть примеры' : 'Показать примеры'}
                 </button>
-
                 {showExamples && (
                     <div className={styles.formulaExamples}>
                         <h4>Примеры формул:</h4>
@@ -59,7 +57,6 @@ const FormulaEditorModal = ({ formula, onSave, onClose }) => {
                         </ul>
                     </div>
                 )}
-
                 <div className={styles.formulaButtons}>
                     <button onClick={onClose}>Отмена</button>
                     <button onClick={handleSave}>Сохранить</button>
@@ -87,6 +84,157 @@ const ReportCreation = ({ idReport }) => {
     const [editingFormulaIndex, setEditingFormulaIndex] = useState(null);
     const [showFormulaModal, setShowFormulaModal] = useState(false);
 
+    const parseDateValue = (value) => {
+        if (value === null || value === undefined || value === '') {
+            return null;
+        }
+
+        if (typeof value === 'number') {
+            if (value > 0 && value < 50000) {
+                const date = excelSerialToDate(value);
+                return date.getTime();
+            }
+            return value;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim().replace(/"/g, '');
+            const dateMatch = trimmed.match(/^(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})$/);
+            if (dateMatch) {
+                const [_, day, month, year] = dateMatch;
+                const pad = num => num.length === 1 ? `0${num}` : num;
+                const normalizedDate = `${pad(day)}.${pad(month)}.${year}`;
+                const date = new Date(normalizedDate.split('.').reverse().join('-'));
+                return !isNaN(date.getTime()) ? date.getTime() : null;
+            }
+
+            const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (isoMatch) {
+                const [_, year, month, day] = isoMatch;
+                const date = new Date(year, month - 1, day);
+                return !isNaN(date.getTime()) ? date.getTime() : null;
+            }
+        }
+
+        if (value instanceof Date) {
+            return value.getTime();
+        }
+
+        return null;
+    };
+
+    const excelSerialToDate = (serial) => {
+        if (typeof serial !== 'number' || serial < 0) return null;
+        const utcDays = Math.floor(serial - 25569);
+        const utcValue = utcDays * 86400;
+        const date = new Date(utcValue * 1000);
+        const offset = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() + offset);
+    };
+
+    const formatDateToString = (timestamp) => {
+        if (!timestamp) return '';
+        try {
+            const date = new Date(timestamp);
+            if (isNaN(date.getTime())) return '';
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return '';
+        }
+    };
+
+    const initParserFunctions = () => {
+        const parser = new Parser();
+        parser.functions.DATE = (dateStr) => parseDateValue(dateStr);
+
+        parser.functions.DATEDIFF = (date1, date2) => {
+            const d1 = parseDateValue(date1);
+            const d2 = parseDateValue(date2);
+            return (d1 - d2) / (1000 * 60 * 60 * 24); // Разница в днях
+        };
+
+        parser.functions = {
+            ...parser.functions,
+            SUM: (...args) => args.reduce((a, b) => a + b, 0),
+            AVG: (...args) => args.reduce((a, b) => a + b, 0) / args.length,
+            COUNT: (...args) => args.length,
+            MIN: (...args) => Math.min(...args),
+            MAX: (...args) => Math.max(...args),
+            STDDEV: (...args) => {
+                const avg = args.reduce((a, b) => a + b, 0) / args.length;
+                return Math.sqrt(args.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / args.length);
+            },
+            LOG: Math.log,
+            EXP: Math.exp,
+            SQRT: Math.sqrt,
+            POW: Math.pow,
+            ABS: Math.abs,
+            ROUND: (num, decimals = 0) => Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals),
+            IF: (condition, trueVal, falseVal) => condition ? trueVal : falseVal,
+            CONCAT: (...args) => args.join(''),
+            DATE: (dateStr) => parseDateValue(dateStr),
+            DATE_TO_STR: (timestamp) => formatDateToString(timestamp),
+            YEAR: (dateStr) => {
+                try {
+                    const timestamp = parseDateValue(dateStr);
+                    if (timestamp === null) return null;
+                    const date = new Date(timestamp);
+                    return date.getFullYear();
+                } catch (e) {
+                    console.error('[YEAR] Error:', e);
+                    return null;
+                }
+            },
+            MONTH: (dateStr) => {
+                try {
+                    const timestamp = parseDateValue(dateStr);
+                    return timestamp ? new Date(timestamp).getMonth() + 1 : null;
+                } catch (e) {
+                    console.error('Error in MONTH function:', e);
+                    return null;
+                }
+            },
+            DAY: (dateStr) => {
+                try {
+                    const timestamp = parseDateValue(dateStr);
+                    return timestamp ? new Date(timestamp).getDate() : null;
+                } catch (e) {
+                    console.error('Error in DAY function:', e);
+                    return null;
+                }
+            },
+            TODAY: () => new Date().getTime(),
+            NOW: () => Date.now(),
+            COMPARE_DATES: (date1, date2, operator) => {
+                try {
+                    const timestamp1 = parseDateValue(date1);
+                    const timestamp2 = parseDateValue(date2);
+
+                    if (timestamp1 === null || timestamp2 === null) return false;
+
+                    switch(operator) {
+                        case '<': return timestamp1 < timestamp2;
+                        case '<=': return timestamp1 <= timestamp2;
+                        case '>': return timestamp1 > timestamp2;
+                        case '>=': return timestamp1 >= timestamp2;
+                        case '==': return timestamp1 === timestamp2;
+                        case '!=': return timestamp1 !== timestamp2;
+                        default: return false;
+                    }
+                } catch (e) {
+                    console.error('Ошибка сравнения дат:', e);
+                    return false;
+                }
+            }
+        };
+
+        return parser;
+    };
+
     useEffect(() => {
         return () => {
             localStorage.removeItem('selectedReportId');
@@ -102,9 +250,6 @@ const ReportCreation = ({ idReport }) => {
     }, [idReport]);
 
     const calculateAggregations = (values, func) => {
-        // const nums = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
-        // if (nums.length === 0) return null;
-
         if (func.toUpperCase() === 'COUNT') {
             return values.filter(v => v !== null && v !== undefined && v !== '').length;
         }
@@ -129,14 +274,6 @@ const ReportCreation = ({ idReport }) => {
             }
             default: return null;
         }
-    };
-
-    const excelSerialToDate = (serial) => {
-        if (typeof serial !== 'number' || isNaN(serial)) return null;
-        const utcDays = Math.floor(serial - 25569);
-        const utcValue = utcDays * 86400;
-        const date = new Date(utcValue * 1000);
-        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
     };
 
     const processTimeSeries = (values, windowSize) => {
@@ -204,14 +341,27 @@ const ReportCreation = ({ idReport }) => {
         setCustomWhereColumns([...customWhereColumns]);
     };
 
+    const maxNumber = customWhereColumns.reduce((max, col) => {
+        const match = col.name.match(/^column_(\d+)$/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            return num > max ? num : max;
+        }
+        return max;
+    }, 0);
+
     const handleAddColumn = () => {
-        setCustomWhereColumns([...customWhereColumns, {
+        const newColumn = {
             fx: "",
             type: "a",
-            name: "new_column_" + customWhereColumns.length,
+            name: `column_${maxNumber + 1}`,
             title: "",
             where: []
-        }]);
+        };
+        setCustomWhereColumns([...customWhereColumns, newColumn]);
+
+        // Добавляем пустые значения для нового столбца во все строки данных
+        setDataReport(prevData => prevData.map(row => [...row, '']));
     };
 
     const handleColumnChange = (index, field, value = '') => {
@@ -224,24 +374,13 @@ const ReportCreation = ({ idReport }) => {
     };
 
     const handleDeleteColumn = (index) => {
-        const newRecords = [];
-        const newColumns = customWhereColumns.filter((column, iCol) => {
-            if (iCol === index) {
-                dataReport.map((records) => {
-                    records.splice(index, 1);
-                    newRecords.push(records);
-                });
-            }
-            return iCol !== index;
-        });
-        setNewDataReport([...newRecords]);
-        setCustomWhereColumns([...newColumns]);
+        setCustomWhereColumns(prev => prev.filter((_, iCol) => iCol !== index));
+        setDataReport(prevData => prevData.map(row => {
+            const newRow = [...row];
+            newRow.splice(index, 1);
+            return newRow;
+        }));
     };
-
-    // const handleFormulaDoubleClick = (index) => {
-    //     navigator.clipboard.writeText(`[${customWhereColumns[index].name}]`);
-    //     toast.success(`Скопировано: [${customWhereColumns[index].name}]`, { position: "top-right" });
-    // };
 
     const handleFormulaClick = (index) => {
         setEditingFormulaIndex(index);
@@ -251,6 +390,25 @@ const ReportCreation = ({ idReport }) => {
     const handleSaveFormula = (formula) => {
         handleColumnChange(editingFormulaIndex, "fx", formula);
         setShowFormulaModal(false);
+    };
+
+    const handleDragEnd = (result) => {
+        if (!result.destination) return;
+
+        const newColumns = [...customWhereColumns];
+        const [removed] = newColumns.splice(result.source.index, 1);
+        newColumns.splice(result.destination.index, 0, removed);
+
+        // Переставляем данные в строках соответствующим образом
+        const newData = dataReport.map(row => {
+            const newRow = [...row];
+            const [removedValue] = newRow.splice(result.source.index, 1);
+            newRow.splice(result.destination.index, 0, removedValue);
+            return newRow;
+        });
+
+        setCustomWhereColumns(newColumns);
+        setDataReport(newData);
     };
 
     useEffect(() => {
@@ -320,212 +478,26 @@ const ReportCreation = ({ idReport }) => {
             });
     }, [currentReportId, reportNotFound]);
 
-    const calculateYearsOfExperience = (date) => {
-        const startDate = new Date(date);
-        const currentDate = new Date();
-        const diffTime = currentDate - startDate;
-        return diffTime / (1000 * 3600 * 24 * 365);
-    };
-
     const filterDataReport = () => {
+        const parser = initParserFunctions();
         const arrayData = [...dataReport];
         const newArrayWhereData = [];
 
-        // Функция для преобразования даты в timestamp
-        const parseDateToTimestamp = (dateStr) => {
-            if (!dateStr || typeof dateStr !== 'string') return null;
-            const [day, month, year] = dateStr.split('.');
-            return new Date(`${year}-${month}-${day}`).getTime();
-        };
-
-        // Нормализация чисел (замена запятых на точки)
-        const normalizeNumbers = (expr) => {
-            return expr.replace(/(\d+),(\d+)/g, "$1.$2");
-        };
-
-        // Подготовка выражения с автоматическим преобразованием сравнений дат
         const prepareExpression = (expr) => {
             if (typeof expr !== 'string') return expr;
 
-            // Преобразование тернарных операторов с датами
             expr = expr.replace(
-                /\[([^\]]+)\]\s*(<=|>=|<|>|==|!=)\s*"(\d{2}\.\d{2}\.\d{4})"\s*\?\s*"([^"]*)"\s*:\s*"([^"]*)"/g,
+                /IF\s*\(\s*\[([^\]]+)\]\s*(<=|>=|<|>|==|!=)\s*"(\d{2}\.\d{2}\.\d{4})"\s*,\s*("[^"]*"|[^,]+)\s*,\s*("[^"]*"|[^)]+)\s*\)/g,
                 (match, colName, operator, dateStr, trueVal, falseVal) => {
-                    return `IF(COMPARE_DATES([${colName}], "${dateStr}", "${operator}"), "${trueVal}", "${falseVal}")`;
+                    return `IF(COMPARE_DATES([${colName}], "${dateStr}", "${operator}"), ${trueVal}, ${falseVal})`;
                 }
-            );
-
-            // Преобразование простых сравнений дат
-            expr = expr.replace(
-                /\[([^\]]+)\]\s*(<=|>=|<|>|==|!=)\s*"(\d{2}\.\d{2}\.\d{4})"/g,
-                'COMPARE_DATES([$1], "$3", "$2")'
             );
 
             return expr;
         };
 
-        // Инициализация парсера с кастомными функциями
-        const parser = new Parser();
-
-        // Функция сравнения дат
-        parser.functions.COMPARE_DATES = (colValue, dateStr, operator) => {
-            try {
-                // Функция для преобразования даты в timestamp
-                const parseDate = (date) => {
-                    if (!date) return null;
-                    if (typeof date === 'number') return date;
-                    if (typeof date === 'string' && date.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                        const [day, month, year] = date.split('.');
-                        return new Date(`${year}-${month}-${day}`).getTime();
-                    }
-                    return null;
-                };
-
-                const date1 = parseDate(colValue);
-                const date2 = parseDate(dateStr);
-
-                if (date1 === null || date2 === null) return false;
-
-                switch(operator) {
-                    case '<': return date1 < date2;
-                    case '<=': return date1 <= date2;
-                    case '>': return date1 > date2;
-                    case '>=': return date1 >= date2;
-                    case '==': return date1 === date2;
-                    case '!=': return date1 !== date2;
-                    default: return false;
-                }
-            } catch (e) {
-                console.error('Ошибка сравнения дат:', e);
-                toast.error(`Ошибка сравнения дат: ${e.message}`, { position: "top-right" });
-                return false;
-            }
-        };
-
-        // Основные функции парсера
-        parser.functions = {
-            ...parser.functions,
-            // Математические функции
-            SUM: (...args) => args.reduce((a, b) => a + b, 0),
-            AVG: (...args) => args.reduce((a, b) => a + b, 0) / args.length,
-            COUNT: (...args) => args.length,
-            MIN: (...args) => Math.min(...args),
-            MAX: (...args) => Math.max(...args),
-            STDDEV: (...args) => {
-                const avg = args.reduce((a, b) => a + b, 0) / args.length;
-                return Math.sqrt(args.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / args.length);
-            },
-
-            // Базовые математические
-            LOG: Math.log,
-            EXP: Math.exp,
-            SQRT: Math.sqrt,
-            POW: Math.pow,
-            ABS: Math.abs,
-            ROUND: (num, decimals = 0) => Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals),
-
-            // Логические
-            IF: (condition, trueVal, falseVal) => condition ? trueVal : falseVal,
-
-            // Строковые
-            CONCAT: (...args) => args.join(''),
-
-            // Функции для работы с датами
-            DATE: (dateStr) => {
-                if (!dateStr) return null;
-
-                // Если это уже timestamp
-                if (typeof dateStr === 'number') return dateStr;
-
-                // Обработка формата "dd.mm.yyyy"
-                if (typeof dateStr === 'string') {
-                    // Проверяем формат "dd.mm.yyyy"
-                    const dateMatch = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-                    if (dateMatch) {
-                        const [_, day, month, year] = dateMatch;
-                        // Важно: месяцы в JavaScript начинаются с 0 (январь = 0)
-                        return new Date(year, month - 1, day).getTime();
-                    }
-
-                    // Пробуем распарсить как ISO строку
-                    const date = new Date(dateStr);
-                    if (!isNaN(date.getTime())) return date.getTime();
-                }
-
-                return null;
-            },
-            DATE_TO_STR: (timestamp) => {
-                if (!timestamp) return null;
-                const date = new Date(timestamp);
-                return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
-            },
-            YEAR: (dateStr) => {
-                try {
-                    // Если передано число (timestamp)
-                    if (typeof dateStr === 'number') {
-                        return new Date(dateStr).getFullYear();
-                    }
-
-                    // Если передана строка в формате "dd.mm.yyyy"
-                    if (typeof dateStr === 'string') {
-                        const dateMatch = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-                        if (dateMatch) {
-                            const [_, day, month, year] = dateMatch;
-                            return parseInt(year, 10);
-                        }
-                    }
-
-                    // Стандартное преобразование через DATE
-                    const timestamp = parser.functions.DATE(dateStr);
-                    return timestamp ? new Date(timestamp).getFullYear() : null;
-                } catch (e) {
-                    console.error('Error in YEAR function:', e);
-                    return null;
-                }
-            },
-            MONTH: (dateStr) => {
-                try {
-                    if (typeof dateStr === 'string') {
-                        const dateMatch = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-                        if (dateMatch) {
-                            const [_, day, month, year] = dateMatch;
-                            return parseInt(month, 10);
-                        }
-                    }
-                    const timestamp = parser.functions.DATE(dateStr);
-                    return timestamp ? new Date(timestamp).getMonth() + 1 : null;
-                } catch (e) {
-                    console.error('Error in MONTH function:', e);
-                    return null;
-                }
-            },
-
-            DAY: (dateStr) => {
-                try {
-                    if (typeof dateStr === 'string') {
-                        const dateMatch = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-                        if (dateMatch) {
-                            const [_, day, month, year] = dateMatch;
-                            return parseInt(day, 10);
-                        }
-                    }
-                    const timestamp = parser.functions.DATE(dateStr);
-                    return timestamp ? new Date(timestamp).getDate() : null;
-                } catch (e) {
-                    console.error('Error in DAY function:', e);
-                    return null;
-                }
-            },
-
-            // Специальные функции
-            TODAY: () => new Date().getTime(),
-            NOW: () => Date.now()
-        };
-
-        // Обработка каждой колонки
         customWhereColumns.forEach((column, iCol) => {
             if (column.fx) {
-                // Обработка агрегатных функций
                 const aggMatch = column.fx.match(/^(SUM|AVG|COUNT|MIN|MAX|STDDEV)\(\[(.+?)\]\)/i);
                 const windowMatch = column.fx.match(/^MOVING_AVG\(\[(.+?)\],\s*(\d+)\)/i);
                 const corrMatch = column.fx.match(/^CORREL\(\[(.+?)\],\s*\[(.+?)\]\)/i);
@@ -561,7 +533,6 @@ const ReportCreation = ({ idReport }) => {
                     }
                 }
                 else {
-                    // Обработка обычных формул
                     arrayData.forEach((record) => {
                         try {
                             const variables = {};
@@ -569,41 +540,23 @@ const ReportCreation = ({ idReport }) => {
                                 let value = record[index];
                                 if (value === undefined || value === null) value = '';
 
-                                // Нормализация чисел
-                                if (typeof value === 'string' && value.includes(',')) {
-                                    value = value.replace(',', '.');
+                                if (col.type === 'date' || col.name.toLowerCase().includes('date')) {
+                                    value = parseDateValue(value);
+                                    variables[col.name] = value !== null ? value : '""';
+                                } else {
+                                    variables[col.name] = typeof value === 'string' ? `"${value}"` : value;
                                 }
-
-                                // Парсинг чисел
-                                const numValue = parseFloat(value);
-                                variables[col.name] = !isNaN(numValue) ? numValue : value;
-                                variables[`${col.name}_percent`] = typeof value === 'number' ? value * 100 : value;
                             });
 
-                            let preparedExpression = prepareExpression(column.fx);
+                            if (column.fx) {
+                                let preparedExpression = prepareExpression(column.fx);
+                                preparedExpression = preparedExpression.replace(/\[([^\]]+)\]/g,
+                                    (match, colName) => variables[colName] || '""'
+                                );
 
-                            // Обработка процентов
-                            if (preparedExpression.includes('%')) {
-                                preparedExpression = preparedExpression.replace(/\[([^\]]+)\]/g, '[$1_percent]');
-                                preparedExpression = preparedExpression.replace(/%/g, '');
+                                const result = parser.parse(preparedExpression).evaluate(variables);
+                                record[iCol] = result;
                             }
-
-                            // Подстановка переменных
-                            preparedExpression = preparedExpression.replace(
-                                /\[([^\]]+)]/g,
-                                (match, varName) => {
-                                    const val = variables[varName];
-                                    return val !== undefined ?
-                                        (typeof val === 'string' ? `"${val}"` : val) :
-                                        '""';
-                                }
-                            );
-
-                            // Удаляем лишние пробелы вокруг операторов
-                            preparedExpression = preparedExpression.replace(/\s*([=><!+\-*/%])\s*/g, ' $1 ');
-
-                            const result = parser.parse(preparedExpression).evaluate(variables);
-                            record[iCol] = typeof result === 'boolean' ? (result ? "Да" : "Нет") : result;
                         } catch (error) {
                             console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
                             record[iCol] = `Ошибка: ${error.message}`;
@@ -612,7 +565,6 @@ const ReportCreation = ({ idReport }) => {
                 }
             }
 
-            // Обработка условий WHERE
             if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
                 const { operator = dataWhereColumns[0], value } = column.where;
                 arrayData.forEach((record) => {
@@ -620,59 +572,40 @@ const ReportCreation = ({ idReport }) => {
                         let recordValue = record[iCol];
                         let compareValue = value;
 
-                        // Обработка дат
-                        if (typeof recordValue === 'string' && recordValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                            recordValue = parseDateToTimestamp(recordValue);
+                        if (column.type === 'date' || column.name.toLowerCase().includes('date')) {
+                            recordValue = parseDateValue(recordValue);
+                            compareValue = parseDateValue(compareValue);
+                        } else {
+                            recordValue = normalizeNumbers(String(recordValue));
+                            compareValue = normalizeNumbers(String(compareValue));
+
+                            const numRecordValue = parseFloat(recordValue);
+                            const numCompareValue = parseFloat(compareValue);
+                            if (!isNaN(numRecordValue)) recordValue = numRecordValue;
+                            if (!isNaN(numCompareValue)) compareValue = numCompareValue;
                         }
-                        if (typeof compareValue === 'string' && compareValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                            compareValue = parseDateToTimestamp(compareValue);
-                        }
 
-                        // Нормализация чисел
-                        recordValue = normalizeNumbers(String(recordValue));
-                        compareValue = normalizeNumbers(String(compareValue));
-
-                        // Парсинг чисел
-                        const numRecordValue = parseFloat(recordValue);
-                        const numCompareValue = parseFloat(compareValue);
-                        if (!isNaN(numRecordValue)) recordValue = numRecordValue;
-                        if (!isNaN(numCompareValue)) compareValue = numCompareValue;
-
-                        // Формирование условия
                         const conditionExpr = `${recordValue} ${operator} ${compareValue}`;
                         const condition = parser.parse(conditionExpr).evaluate();
 
                         if (condition) {
                             newArrayWhereData.push(record);
                         }
-                        const result = parser.parse(preparedExpression).evaluate(variables);
-                        record[iCol] = typeof result === 'boolean' ? (result ? "Да" : "Нет") : result;
-
                     } catch (error) {
                         console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
                         record[iCol] = `Ошибка: ${error.message}`;
-                        toast.error(`Ошибка в формуле "${column.fx}": ${error.message}`, {
-                            position: "top-right",
-                            autoClose: 5000
-                        });
                     }
                 });
             }
         });
-
-        const allReportData = newArrayWhereData.length > 0 ? newArrayWhereData : arrayData;
-        setNewDataReport(allReportData);
-        return allReportData;
+        return newArrayWhereData.length > 0 ? newArrayWhereData : arrayData;
     };
 
     const handlePreview = () => {
         const bearerToken = localStorage.getItem('api_token');
-
         try {
-            // Фильтруем и обрабатываем данные
             const newDataReport = filterDataReport();
 
-            // Форматируем данные, особенно даты
             const formattedData = newDataReport.map(row => {
                 const newRow = Array.isArray(row) ? [...row] : {...row};
 
@@ -684,43 +617,9 @@ const ReportCreation = ({ idReport }) => {
 
                     if (isDateColumn) {
                         try {
-                            let dateValue = newRow[index];
-
-                            // Если значение отсутствует
-                            if (dateValue === null || dateValue === undefined || dateValue === '') {
-                                newRow[index] = '';
-                                return;
-                            }
-
-                            // Если это число (Excel serial date)
-                            if (typeof dateValue === 'number') {
-                                const date = excelSerialToDate(dateValue);
-                                if (date) {
-                                    const day = String(date.getDate()).padStart(2, '0');
-                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                    const year = date.getFullYear();
-                                    newRow[index] = `${day}.${month}.${year}`;
-                                }
-                                return;
-                            }
-
-                            // Если это строка в правильном формате
-                            if (typeof dateValue === 'string' && dateValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-                                return; // Оставляем как есть
-                            }
-
-                            // Пытаемся распарсить другие форматы дат
-                            const parsedDate = new Date(dateValue);
-                            if (!isNaN(parsedDate.getTime())) {
-                                const day = String(parsedDate.getDate()).padStart(2, '0');
-                                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-                                const year = parsedDate.getFullYear();
-                                newRow[index] = `${day}.${month}.${year}`;
-                            } else {
-                                newRow[index] = ''; // Невалидная дата
-                            }
+                            newRow[index] = formatDateToString(newRow[index]);
                         } catch (error) {
-                            console.error(`Ошибка форматирования даты в колонке ${col.name}:`, error);
+                            console.error(`Ошибка форматирования даты:`, error);
                             newRow[index] = '';
                         }
                     }
@@ -729,7 +628,6 @@ const ReportCreation = ({ idReport }) => {
                 return newRow;
             });
 
-            // Подготавливаем данные для отправки
             const dataForm = {
                 format: selectedExtension,
                 name: name.trim(),
@@ -743,7 +641,6 @@ const ReportCreation = ({ idReport }) => {
                 data: formattedData.length > 0 ? formattedData : dataReport
             };
 
-            // Проверка данных перед отправкой
             if (!dataForm.name) {
                 toast.error("Название отчета не может быть пустым", { position: "top-right" });
                 return;
@@ -754,7 +651,6 @@ const ReportCreation = ({ idReport }) => {
                 return;
             }
 
-            // Отправка запроса
             fetch(`${API_URL}/api/report/export/${currentReportId}/preview`, {
                 method: 'POST',
                 headers: {
@@ -782,7 +678,6 @@ const ReportCreation = ({ idReport }) => {
                     document.body.appendChild(a);
                     a.click();
 
-                    // Очистка
                     setTimeout(() => {
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
@@ -812,7 +707,18 @@ const ReportCreation = ({ idReport }) => {
 
     const handleChangeToReport = () => {
         const bearerToken = localStorage.getItem('api_token');
-        filterDataReport();
+        const filteredData = filterDataReport();
+
+        const formattedData = filteredData.map((row, rowIndex) => {
+            const newRow = {};
+
+            customWhereColumns.forEach((col, colIndex) => {
+                newRow[colIndex] = row[colIndex];
+                newRow[col.name] = row[colIndex];
+            });
+
+            return newRow;
+        });
 
         const dataForm = {
             id: currentReportId,
@@ -821,6 +727,7 @@ const ReportCreation = ({ idReport }) => {
             extension: selectedExtension,
             headers: customWhereColumns,
             whereData: newDataReport.length > 0 ? newDataReport : dataReport,
+            data: formattedData,
         };
 
         fetch(`${API_URL}/api/report`, {
@@ -852,14 +759,6 @@ const ReportCreation = ({ idReport }) => {
                     autoClose: 5000
                 });
             });
-    };
-
-    const handleDragEnd = (result) => {
-        if (!result.destination) return;
-        const items = Array.from(customWhereColumns);
-        const [reorderedItem] = items.splice(result.source.index, 1);
-        items.splice(result.destination.index, 0, reorderedItem);
-        setCustomWhereColumns(items);
     };
 
     if (reportNotFound || !currentReportId) {
@@ -1043,7 +942,10 @@ const ReportCreation = ({ idReport }) => {
                                                 </div>
                                             )}
 
-                                            <button onClick={() => handleDeleteColumn(index)}>Удалить</button>
+                                            <button onClick={() => handleDeleteColumn(index)}>
+
+                                                Удалить
+                                            </button>
                                         </div>
                                     )}
                                 </Draggable>

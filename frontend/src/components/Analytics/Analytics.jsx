@@ -53,6 +53,13 @@ const Analytics = () => {
         setFullscreenChart(null);
     };
 
+    // Функция для преобразования значений в числа
+    const convertToNumber = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number(value);
+        return isNaN(num) ? null : num;
+    };
+
     useEffect(() => {
         const fetchReports = async () => {
             setLoading(true);
@@ -68,14 +75,12 @@ const Analytics = () => {
 
                 if (response.ok && data.success) {
                     const filteredReports = data.data.filter(report => !report.isDeleted);
-
                     const formattedReports = filteredReports.map((report) => ({
                         id: report.id,
                         name: report.name,
                         headers: report.headers || [],
                         data: report.data || [],
                     }));
-
                     setReports(formattedReports);
                 } else {
                     setError(data.message || "Не удалось загрузить отчёты.");
@@ -92,53 +97,32 @@ const Analytics = () => {
     useEffect(() => {
         if (selectedReports.length > 0) {
             const report = selectedReports[0];
-
-            setLocalColumns([]);
-            setTextColumns([]);
-            setDisplayedColumns([]);
-            setDisplayedTextColumns([]);
-
             const numericColumns = [];
             const textColumns = [];
 
-            // Проверяем все возможные колонки (из headers и из данных)
-            const allPossibleColumns = new Set();
+            // Собираем все возможные колонки
+            const allColumns = new Set();
 
             // Добавляем колонки из headers
             report.headers.forEach(header => {
-                allPossibleColumns.add(header.name);
+                allColumns.add(header.name);
             });
 
-            // Добавляем колонки из данных (для новых колонок)
+            // Добавляем колонки из данных
             report.data.forEach(row => {
                 Object.keys(row).forEach(key => {
-                    if (!isNaN(key)) return; // Пропускаем числовые индексы
-                    allPossibleColumns.add(key);
+                    if (!isNaN(key)) return;
+                    allColumns.add(key);
                 });
             });
 
-            // Проверяем тип данных для каждой колонки
-            Array.from(allPossibleColumns).forEach(columnName => {
-                let isNumeric = false;
-
-                // Пытаемся найти колонку в headers
-                const headerIndex = report.headers.findIndex(h => h.name === columnName);
-
-                if (headerIndex !== -1) {
-                    // Колонка есть в headers, проверяем данные
-                    isNumeric = report.data.some(item => {
-                        const numValue = Number(item[headerIndex]);
-                        return !isNaN(numValue) && item[headerIndex] !== null && item[headerIndex] !== '';
-                    });
-                } else {
-                    // Новая колонка, проверяем данные по имени
-                    isNumeric = report.data.some(item => {
-                        const value = item[columnName];
-                        if (value === undefined || value === null) return false;
-                        const numValue = Number(value);
-                        return !isNaN(numValue) && value !== '';
-                    });
-                }
+            // Определяем тип колонок
+            Array.from(allColumns).forEach(columnName => {
+                let isNumeric = report.data.some(row => {
+                    const value = row[columnName] ?? row[report.headers.findIndex(h => h.name === columnName)];
+                    if (value === null || value === undefined || value === '') return false;
+                    return !isNaN(Number(value));
+                });
 
                 if (isNumeric) {
                     numericColumns.push(columnName);
@@ -150,42 +134,26 @@ const Analytics = () => {
             setLocalColumns(numericColumns);
             setTextColumns(textColumns);
             setDisplayedColumns(numericColumns.slice(0, Math.min(3, numericColumns.length)));
-            if (textColumns.length > 0) {
-                setDisplayedTextColumns([textColumns[0]]);
-            }
+            setDisplayedTextColumns(textColumns.length > 0 ? [textColumns[0]] : []);
         }
     }, [selectedReports]);
 
+    // Обработка числовых данных для графиков
     useEffect(() => {
         if (selectedReports.length > 0 && displayedColumns.length > 0) {
             const newChartDatasets = selectedReports.map((report) => {
-                // Первая колонка всегда будет labels
                 const labels = report.data.map(item => {
-                    // Пытаемся получить первый столбец из headers или по индексу 0
-                    if (report.headers.length > 0) {
-                        return item[0] || '';
-                    }
-                    return '';
+                    return item[0] ?? item[report.headers[0]?.name] ?? '';
                 });
 
                 const datasets = displayedColumns.map((column, index) => {
-                    // Пытаемся найти индекс колонки в headers
-                    const headerIndex = report.headers.findIndex(header => header.name === column);
-
-                    let data;
-                    if (headerIndex !== -1) {
-                        // Колонка есть в headers, берем данные по индексу
-                        data = report.data.map(item => {
-                            const value = item[headerIndex];
-                            return value !== null && value !== '' ? Number(value) : null;
-                        }).filter(val => val !== null);
-                    } else {
-                        // Новая колонка, ищем данные по имени
-                        data = report.data.map(item => {
-                            const value = item[column];
-                            return value !== null && value !== '' && value !== undefined ? Number(value) : null;
-                        }).filter(val => val !== null);
-                    }
+                    const headerIndex = report.headers.findIndex(h => h.name === column);
+                    const data = report.data.map(item => {
+                        const value = headerIndex !== -1
+                            ? item[headerIndex] ?? item[column]
+                            : item[column];
+                        return convertToNumber(value);
+                    }).filter(val => val !== null);
 
                     return {
                         label: column,
@@ -200,25 +168,22 @@ const Analytics = () => {
             });
             setChartDatasets(newChartDatasets);
         }
+    }, [selectedReports, displayedColumns, chartType]);
 
+    // Обработка текстовых данных для графиков
+    useEffect(() => {
         if (textColumns.length > 0 && displayedTextColumns.length > 0) {
             const newTextChartDatasets = selectedReports.flatMap(report => {
                 return displayedTextColumns.map(column => {
                     const textCount = {};
 
-                    // Пытаемся найти индекс колонки в headers
-                    const headerIndex = report.headers.findIndex(header => header.name === column);
-
                     report.data.forEach(item => {
-                        let textValue;
-                        if (headerIndex !== -1) {
-                            textValue = item[headerIndex];
-                        } else {
-                            // Новая колонка, ищем по имени
-                            textValue = item[column];
-                        }
+                        const headerIndex = report.headers.findIndex(h => h.name === column);
+                        const textValue = headerIndex !== -1
+                            ? item[headerIndex] ?? item[column]
+                            : item[column];
 
-                        if (typeof textValue === 'string' || (textValue !== null && textValue !== undefined)) {
+                        if (textValue !== null && textValue !== undefined) {
                             const strValue = String(textValue);
                             textCount[strValue] = (textCount[strValue] || 0) + 1;
                         }
@@ -232,17 +197,16 @@ const Analytics = () => {
                         datasets: [{
                             label: `Текстовые данные из ${column}`,
                             data: textValues,
-                            backgroundColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`),
-                            borderColor: textLabels.map((_, index) => `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`),
+                            backgroundColor: textLabels.map((_, i) => `rgba(${(i * 100 + 50) % 255}, ${(i * 150 + 50) % 255}, ${(i * 200 + 50) % 255}, 0.8)`),
+                            borderColor: textLabels.map((_, i) => `rgba(${(i * 100 + 50) % 255}, ${(i * 150 + 50) % 255}, ${(i * 200 + 50) % 255}, 1)`),
                             borderWidth: 1,
                         }]
                     };
                 });
             });
-
             setTextChartDatasets(newTextChartDatasets);
         }
-    }, [selectedReports, displayedColumns, displayedTextColumns]);
+    }, [selectedReports, displayedTextColumns]);
 
     const handleSelectReport = async (reportId) => {
         setLoading(true);
@@ -256,13 +220,12 @@ const Analytics = () => {
             });
             const data = await response.json();
             if (response.ok && data.success) {
-                const report = {
+                setSelectedReports([{
                     id: data.data.id,
                     name: data.data.name,
                     headers: data.data.headers || [],
                     data: data.data.data || [],
-                };
-                setSelectedReports([report]);
+                }]);
             } else {
                 setError(data.message || "Не удалось загрузить отчёт.");
             }
@@ -274,18 +237,18 @@ const Analytics = () => {
     };
 
     const handleToggleColumn = (columnName) => {
-        setDisplayedColumns(prevColumns =>
-            prevColumns.includes(columnName)
-                ? prevColumns.filter(col => col !== columnName)
-                : [...prevColumns, columnName]
+        setDisplayedColumns(prev =>
+            prev.includes(columnName)
+                ? prev.filter(c => c !== columnName)
+                : [...prev, columnName]
         );
     };
 
     const handleToggleTextColumn = (columnName) => {
-        setDisplayedTextColumns(prevColumns =>
-            prevColumns.includes(columnName)
-                ? prevColumns.filter(col => col !== columnName)
-                : [...prevColumns, columnName]
+        setDisplayedTextColumns(prev =>
+            prev.includes(columnName)
+                ? prev.filter(c => c !== columnName)
+                : [...prev, columnName]
         );
     };
 
@@ -293,22 +256,29 @@ const Analytics = () => {
         const chartContainer = document.getElementById('chartContainer');
         if (!chartContainer) return;
 
+        const canvas = await html2canvas(chartContainer);
+
         if (format === 'png') {
-            const canvas = await html2canvas(chartContainer);
             const link = document.createElement('a');
             link.href = canvas.toDataURL('image/png');
             link.download = 'chart.png';
             link.click();
-        } else if (format === 'pdf') {
-            const canvas = await html2canvas(chartContainer);
+        }
+        else if (format === 'pdf') {
             const pdf = new jsPDF();
             pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, 180, 160);
             pdf.save('chart.pdf');
-        } else if (format === 'pptx') {
+        }
+        else if (format === 'pptx') {
             const pptx = new PptxGenJS();
             const slide = pptx.addSlide();
-            const canvas = await html2canvas(chartContainer);
-            slide.addImage({ data: canvas.toDataURL('image/png'), x: 0.5, y: 0.5, w: 8, h: 5 });
+            slide.addImage({
+                data: canvas.toDataURL('image/png'),
+                x: 0.5,
+                y: 0.5,
+                w: 8,
+                h: 5
+            });
             pptx.writeFile({ fileName: 'chart.pptx' });
         }
     };
@@ -323,16 +293,9 @@ const Analytics = () => {
         },
         plugins: {
             zoom: {
-                wheel: {
-                    enabled: true,
-                    speed: 0.1,
-                },
-                drag: {
-                    enabled: true,
-                },
-                pinch: {
-                    enabled: true,
-                },
+                wheel: { enabled: true, speed: 0.1 },
+                drag: { enabled: true },
+                pinch: { enabled: true },
             },
         },
     };
@@ -346,22 +309,14 @@ const Analytics = () => {
                         {chartType === "bar" && !fullscreenChart.isTextChart ? (
                             <Bar
                                 data={fullscreenChart.data}
-                                options={{
-                                    ...chartOptions,
-                                    maintainAspectRatio: true,
-                                    responsive: true
-                                }}
+                                options={{ ...chartOptions, maintainAspectRatio: true }}
                                 width={800}
                                 height={600}
                             />
                         ) : (
                             <Doughnut
                                 data={fullscreenChart.data}
-                                options={{
-                                    ...chartOptions,
-                                    maintainAspectRatio: true,
-                                    responsive: true
-                                }}
+                                options={{ ...chartOptions, maintainAspectRatio: true }}
                                 width={800}
                                 height={600}
                             />
@@ -378,7 +333,7 @@ const Analytics = () => {
                     className={styles.select}
                 >
                     <option value="" disabled>Выберите отчет</option>
-                    {reports.filter(report => !report.isDeleted).map((report) => (
+                    {reports.filter(r => !r.isDeleted).map(report => (
                         <option key={report.id} value={report.id}>{report.name}</option>
                     ))}
                 </select>
@@ -390,61 +345,57 @@ const Analytics = () => {
             {selectedReports.length > 0 && (
                 <div className={styles.controls}>
                     <div className={styles.controlGroup}>
-                        <h3 className={styles.controlTitle}>Выберите тип диаграммы:</h3>
+                        <h3>Тип диаграммы:</h3>
                         <div className={styles.radioGroup}>
-                            <label className={styles.radioContainer}>
+                            <label>
                                 <input
                                     type="radio"
                                     value="bar"
                                     checked={chartType === "bar"}
                                     onChange={handleChartTypeChange}
-                                    className={styles.radioInput}
                                 />
-                                <span className={styles.radioLabel}>Бар</span>
+                                Бар
                             </label>
-                            <label className={styles.radioContainer}>
+                            <label>
                                 <input
                                     type="radio"
                                     value="doughnut"
                                     checked={chartType === "doughnut"}
                                     onChange={handleChartTypeChange}
-                                    className={styles.radioInput}
                                 />
-                                <span className={styles.radioLabel}>Круговая</span>
+                                Круговая
                             </label>
                         </div>
                     </div>
 
                     <div className={styles.controlGroup}>
-                        <h3 className={styles.controlTitle}>Выберите тип шкалы для оси Y:</h3>
+                        <h3>Тип шкалы Y:</h3>
                         <div className={styles.radioGroup}>
-                            <label className={styles.radioContainer}>
+                            <label>
                                 <input
                                     type="radio"
                                     value="linear"
                                     checked={yAxisType === "linear"}
                                     onChange={handleYAxisTypeChange}
-                                    className={styles.radioInput}
                                 />
-                                <span className={styles.radioLabel}>Линейная</span>
+                                Линейная
                             </label>
-                            <label className={styles.radioContainer}>
+                            <label>
                                 <input
                                     type="radio"
                                     value="logarithmic"
                                     checked={yAxisType === "logarithmic"}
                                     onChange={handleYAxisTypeChange}
-                                    className={styles.radioInput}
                                 />
-                                <span className={styles.radioLabel}>Логарифмическая</span>
+                                Логарифмическая
                             </label>
                         </div>
                     </div>
 
                     <div className={styles.controlGroup}>
-                        <h3 className={styles.controlTitle}>Выберите числовые столбцы:</h3>
+                        <h3>Числовые столбцы:</h3>
                         <div className={styles.columnsContainer}>
-                            {localColumns.map((column) => (
+                            {localColumns.map(column => (
                                 <button
                                     key={column}
                                     className={`${styles.columnButton} ${displayedColumns.includes(column) ? styles.selected : ''}`}
@@ -458,9 +409,9 @@ const Analytics = () => {
 
                     {textColumns.length > 0 && (
                         <div className={styles.controlGroup}>
-                            <h3 className={styles.controlTitle}>Выберите текстовые столбцы:</h3>
+                            <h3>Текстовые столбцы:</h3>
                             <div className={styles.columnsContainer}>
-                                {textColumns.map((column) => (
+                                {textColumns.map(column => (
                                     <button
                                         key={column}
                                         className={`${styles.columnButton} ${displayedTextColumns.includes(column) ? styles.selected : ''}`}
@@ -482,7 +433,7 @@ const Analytics = () => {
                         className={styles.chartWrapper}
                         onClick={() => openFullscreenChart(chartData)}
                     >
-                        <h4 className={styles.chartTitle}>График данных</h4>
+                        <h4>График данных</h4>
                         <div className={styles.chart}>
                             {chartType === "bar" ? (
                                 <Bar data={chartData} options={chartOptions} />
@@ -492,13 +443,14 @@ const Analytics = () => {
                         </div>
                     </div>
                 ))}
+
                 {textChartDatasets.map((chartData, index) => (
                     <div
                         key={`text-chart-${index}`}
                         className={styles.chartWrapper}
                         onClick={() => openFullscreenChart(chartData, true)}
                     >
-                        <h4 className={styles.chartTitle}>График текстовых данных</h4>
+                        <h4>График текстовых данных</h4>
                         <div className={styles.chart}>
                             <Doughnut data={chartData} options={chartOptions} />
                         </div>
@@ -508,21 +460,9 @@ const Analytics = () => {
 
             {(chartDatasets.length > 0 || textChartDatasets.length > 0) && (
                 <div className={styles.downloadButtons}>
-                    <button
-                        onClick={() => handleDownloadChart('png')}
-                    >
-                        Скачать PNG
-                    </button>
-                    <button
-                        onClick={() => handleDownloadChart('pdf')}
-                    >
-                        Скачать PDF
-                    </button>
-                    <button
-                        onClick={() => handleDownloadChart('pptx')}
-                    >
-                        Скачать PPTX
-                    </button>
+                    <button onClick={() => handleDownloadChart('png')}>PNG</button>
+                    <button onClick={() => handleDownloadChart('pdf')}>PDF</button>
+                    <button onClick={() => handleDownloadChart('pptx')}>PPTX</button>
                 </div>
             )}
         </div>

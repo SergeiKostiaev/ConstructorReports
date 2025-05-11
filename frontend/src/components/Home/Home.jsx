@@ -3,9 +3,7 @@ import styles from './Home.module.sass';
 import { useAuth } from "../../context/AuthContext";
 import AccessControl from "../AccessControl/AccessControl.jsx";
 import { toast } from "react-toastify";
-
 import "react-toastify/dist/ReactToastify.css";
-
 import DataContainer from "../DataContainer/DataContainer.jsx";
 import Reports from "../Reports/Reports.jsx";
 import ReportCreation from "../ReportCreation/ReportCreation.jsx";
@@ -13,13 +11,70 @@ import Analytics from "../Analytics/Analytics.jsx";
 import { FaUserCircle } from "react-icons/fa";
 import ProcessControl from "../ProcessControl/ProcessControl.jsx";
 import * as XLSX from 'xlsx';
-
 import { useSelector, useDispatch } from "react-redux";
 import { addNewReport, fetchReports } from '../features/reportsSlice';
-
 import Logo from '/logo.svg';
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+// Вспомогательные функции для работы с датами
+const excelSerialToDate = (serial) => {
+    const utcDays = Math.floor(serial - 25569);
+    const utcValue = utcDays * 86400;
+    const date = new Date(utcValue * 1000);
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() + offset);
+};
+
+const formatDate = (date) => {
+    if (!date) return '';
+
+    const parsed = new Date(date);
+    if (isNaN(parsed.getTime())) return '';
+
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = parsed.getFullYear();
+
+    return `${day}.${month}.${year}`;
+};
+
+// Улучшенная функция проверки даты
+const isDateColumn = (header, sampleValue, allValues) => {
+    const dateKeywords = ['дата', 'date', 'рожд', 'прием', 'начало', 'конец', 'срок'];
+    const isDateByName = dateKeywords.some(keyword =>
+        header.toLowerCase().includes(keyword)
+    );
+
+    if (!isDateByName) return false;
+
+    const dateValuesCount = allValues.filter(val => {
+        if (val === null || val === undefined || val === '') return false;
+
+        // Проверка формата dd.mm.yyyy
+        if (typeof val === 'string' && /^\d{2}\.\d{2}\.\d{4}$/.test(val)) {
+            const [day, month, year] = val.split('.');
+            const date = new Date(year, month-1, day);
+            return !isNaN(date.getTime());
+        }
+
+        // Проверка Excel serial date
+        if (typeof val === 'number' && val > 0 && val < 50000) {
+            const date = excelSerialToDate(val);
+            return !isNaN(date.getTime());
+        }
+
+        // Проверка ISO формата
+        if (typeof val === 'string') {
+            const date = new Date(val);
+            return !isNaN(date.getTime());
+        }
+
+        return false;
+    }).length;
+
+    return dateValuesCount / allValues.filter(v => v !== null && v !== undefined && v !== '').length > 0.7;
+};
 
 const Home = () => {
     const { logout } = useAuth();
@@ -27,7 +82,6 @@ const Home = () => {
     const dispatch = useDispatch();
     const activeReports = useSelector(state => state.reports.activeProcesses);
 
-    // Загружаем сохранённую вкладку из localStorage
     const [active, setActive] = useState(() => {
         const savedTab = localStorage.getItem('activeTab');
         return savedTab !== null ? Number(savedTab) : 0;
@@ -42,7 +96,6 @@ const Home = () => {
     const isConfirmed = userRole === 2 || userRole === 3 ||
         (userRole === 1 && localStorage.getItem('confirmed') === 'true');
 
-    // Сохраняем выбранный отчет в localStorage
     useEffect(() => {
         if (selectedReportId !== null) {
             localStorage.setItem('selectedReportId', selectedReportId.toString());
@@ -50,7 +103,7 @@ const Home = () => {
             localStorage.removeItem('selectedReportId');
         }
     }, [selectedReportId]);
-    // Сохраняем активную вкладку в localStorage
+
     useEffect(() => {
         localStorage.setItem('activeTab', active.toString());
     }, [active]);
@@ -130,15 +183,14 @@ const Home = () => {
         const fileName = file.name.split('.')[0];
         const fileType = file.name.split('.').pop().toLowerCase();
 
-        // Оптимистичное добавление отчета
         const tempReport = {
-            id: Date.now(), // временный ID
+            id: Date.now(),
             name: fileName,
             created_at: new Date().toLocaleString('ru-RU'),
             updated_at: new Date().toLocaleString('ru-RU'),
             creator: localStorage.getItem('name') || 'Вы',
             status: 'Загружается...',
-            isTemp: true
+            isTemp: true,
         };
 
         dispatch(addNewReport(tempReport));
@@ -147,59 +199,51 @@ const Home = () => {
             let response;
             let result;
 
-            // Для Excel и OpenDocument файлов (XLSX/XLS/ODS)
             if (fileType === 'xlsx' || fileType === 'xls' || fileType === 'ods') {
                 const reader = new FileReader();
                 reader.onload = async (event) => {
                     try {
                         const workbook = XLSX.read(event.target.result, { type: 'binary' });
                         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-                        // Получаем исходные данные без преобразования
                         const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: null });
 
-                        // Определяем формат ячеек для выявления настоящих дат
-                        const cellFormats = {};
-                        if (workbook.SSF) {
-                            Object.keys(sheet).forEach(cellAddress => {
-                                if (sheet[cellAddress].z) {
-                                    cellFormats[cellAddress] = sheet[cellAddress].z;
-                                }
-                            });
-                        }
+                        // Собираем все значения по колонкам для анализа
+                        const columnValues = {};
+                        const headers = Object.keys(jsonData[0] || {});
 
-                        // Преобразуем только ячейки с форматами дат
-                        const dateFormats = ['dd.mm.yyyy', 'dd-mm-yyyy', 'd.m.yy', 'd-m-yy', 'm/d/yy', 'mm/dd/yy'];
+                        headers.forEach(header => {
+                            columnValues[header] = jsonData.map(row => row[header]);
+                        });
 
-                        jsonData.forEach(row => {
-                            Object.entries(row).forEach(([key, value]) => {
-                                if (typeof value === 'number') {
-                                    // Проверяем, является ли это датой Excel (значения между 1900-01-01 и 2100-01-01)
-                                    if (value > 0 && value < 50000) {
-                                        const cellRef = XLSX.utils.encode_cell({ c: XLSX.utils.decode_col(key), r: row.__rowNum__ });
-                                        const cellFormat = cellFormats[cellRef];
+                        const processedData = jsonData.map((row) => {
+                            const newRow = { ...row };
 
-                                        // Если у ячейки есть формат даты или значение выглядит как дата
-                                        if (cellFormat && dateFormats.some(fmt => cellFormat.includes(fmt))) {
-                                            const parsedDate = XLSX.SSF.parse_date_code(value);
-                                            if (parsedDate) {
-                                                const day = String(parsedDate.d).padStart(2, '0');
-                                                const month = String(parsedDate.m).padStart(2, '0');
-                                                const year = String(parsedDate.y);
-                                                row[key] = `${day}.${month}.${year}`;
+                            headers.forEach((header) => {
+                                const value = newRow[header];
+                                // Передаем все значения колонки для анализа
+                                if (isDateColumn(header, value, columnValues[header])) {
+                                    if (typeof value === 'number') {
+                                        const date = excelSerialToDate(value);
+                                        newRow[header] = formatDate(date);
+                                    } else if (typeof value === 'string') {
+                                        // Проверяем, не является ли это числом в строке (например, "50000")
+                                        if (!/^\d+$/.test(value)) {
+                                            const parsedDate = new Date(value);
+                                            if (!isNaN(parsedDate.getTime())) {
+                                                newRow[header] = formatDate(parsedDate);
                                             }
                                         }
                                     }
                                 }
                             });
+
+                            return newRow;
                         });
 
-                        // Перезапишем worksheet
-                        const newWorksheet = XLSX.utils.json_to_sheet(jsonData);
+                        const newWorksheet = XLSX.utils.json_to_sheet(processedData);
                         const newWorkbook = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, workbook.SheetNames[0]);
+                        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Sheet1');
 
-                        // Создаем Blob из workbook
                         const wbout = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
                         const modifiedFile = new Blob([wbout], { type: file.type });
 
@@ -212,83 +256,43 @@ const Home = () => {
                             body: formData,
                         });
 
-                        // Обработка ответа сервера
-                        try {
-                            const responseText = await response.text();
-                            result = responseText ? JSON.parse(responseText) : {};
+                        result = await response.json();
 
-                            if (response.ok && result.success) {
-                                toast.success("Отчет успешно импортирован");
-                                dispatch(fetchReports());
-                            } else {
-                                toast.error(result.message || "Ошибка при импорте отчета");
-                            }
-                        } catch (jsonError) {
-                            console.error("Ошибка парсинга JSON:", jsonError);
-                            toast.error("Сервер вернул неожиданный ответ");
+                        if (response.ok && result.success) {
+                            toast.success("Отчет успешно импортирован");
+                            dispatch(fetchReports());
+                        } else {
+                            toast.error(result.message || "Ошибка при импорте отчета");
                         }
                     } catch (error) {
-                        console.error("Ошибка при обработке Excel файла:", error);
-                        toast.error("Ошибка при обработке Excel файла");
+                        console.error("Ошибка при обработке Excel:", error);
+                        toast.error("Ошибка при обработке файла");
                     }
                 };
                 reader.readAsBinaryString(file);
                 return;
-            } else {
-                // Для CSV/JSON файлов загружаем как есть
-                const formData = new FormData();
-                formData.append("file", file);
-                response = await fetch(`${API_URL}/api/report/import`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${bearerToken}` },
-                    body: formData,
-                });
             }
 
-            // Обработка ответа сервера для не-Excel файлов
-            try {
-                const responseText = await response.text();
-                result = responseText ? JSON.parse(responseText) : {};
+            // Для CSV/JSON
+            const formData = new FormData();
+            formData.append("file", file);
+            response = await fetch(`${API_URL}/api/report/import`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${bearerToken}` },
+                body: formData,
+            });
 
-                if (response.ok && result.success) {
-                    toast.success("Отчет успешно импортирован");
-                    dispatch(fetchReports());
-                } else {
-                    toast.error(result.message || "Ошибка при импорте отчета");
-                }
-            } catch (jsonError) {
-                console.error("Ошибка парсинга JSON:", jsonError);
-                toast.error("Сервер вернул неожиданный ответ");
+            result = await response.json();
+
+            if (response.ok && result.success) {
+                toast.success("Отчет успешно импортирован");
+                dispatch(fetchReports());
+            } else {
+                toast.error(result.message || "Ошибка при импорте отчета");
             }
         } catch (error) {
             console.error("Ошибка загрузки:", error);
             toast.error("Ошибка при отправке файла");
-        }
-    };
-
-    // Вспомогательная функция для загрузки файла
-    const uploadFile = async (formData, bearerToken) => {
-        try {
-            const response = await fetch(`${API_URL}/api/report/import`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${bearerToken}`,
-                },
-                body: formData,
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                toast.success("Отчет успешно загружен");
-                dispatch(fetchReports());
-            } else {
-                toast.error(result.message || "Ошибка при загрузке отчета");
-                throw new Error(result.message || "Ошибка при загрузке отчета");
-            }
-        } catch (error) {
-            console.error("Ошибка загрузки:", error);
-            throw error;
         }
     };
 
@@ -297,7 +301,6 @@ const Home = () => {
             <div className={styles.container__wrap}>
                 <div className={styles.header}>
                     <div className={styles.header__btn}>
-                        {/*<h1>Конструктор отчетов</h1>*/}
                         <img src={Logo} alt="Logo" width={115}/>
                         {isConfirmed && (
                             <div className={styles.header__itemBtn} style={{ position: 'relative' }}>
