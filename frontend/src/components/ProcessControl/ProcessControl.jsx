@@ -9,27 +9,39 @@ const API_URL = import.meta.env.VITE_API_URL;
 const ProcessControl = () => {
     const dispatch = useDispatch();
     const [recentFiles, setRecentFiles] = useState([]);
+    const [allActiveProcesses, setAllActiveProcesses] = useState([]);
     const [activeProcesses, setActiveProcesses] = useState([]);
     const [reportCount, setReportCount] = useState(0);
     const [selectedReport, setSelectedReport] = useState(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [processesPerPage] = useState(4);
+
+    // Вычисляем индексы для пагинации
+    const indexOfLastProcess = currentPage * processesPerPage;
+    const indexOfFirstProcess = indexOfLastProcess - processesPerPage;
+    const totalPages = Math.ceil(allActiveProcesses.length / processesPerPage);
+
+    useEffect(() => {
+        loadReports();
+    }, []);
+
+    useEffect(() => {
+        setActiveProcesses(allActiveProcesses.slice(indexOfFirstProcess, indexOfLastProcess));
+    }, [currentPage, allActiveProcesses, indexOfFirstProcess, indexOfLastProcess]);
 
     const correctServerTime = (dateString) => {
         if (!dateString || !dateString.includes(' в ')) return dateString || '—';
 
         try {
-            // Парсим дату с сервера (предполагаем UTC+3)
             const [datePart, timePart] = dateString.split(' в ');
             const [day, month, year] = datePart.split('.');
             const [hours, minutes] = timePart.split(':');
 
             const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-
-            // 3. Корректируем на часовой пояс пользователя (MSK = UTC+3)
-            const mskOffset = 0 * 60 * 60 * 1000; // 3 часа в миллисекундах
+            const mskOffset = 0 * 60 * 60 * 1000;
             const localDate = new Date(utcDate.getTime() + mskOffset);
 
-            // 4. Форматируем в нужный вид
             const formattedDay = String(localDate.getDate()).padStart(2, '0');
             const formattedMonth = String(localDate.getMonth() + 1).padStart(2, '0');
             const formattedHours = String(localDate.getHours()).padStart(2, '0');
@@ -72,15 +84,17 @@ const ProcessControl = () => {
                     id: report.id,
                     name: report.name || `Отчет #${report.id}`,
                     creator: report.user?.name || 'Неизвестно',
-                    startedAt: report.created_at || '—', // Используем исходный формат
+                    startedAt: report.created_at || '—',
                     progress: report.status_id === 3 ? 100 : 50,
                     status_id: report.status_id,
-                    created_at: report.created_at, // Сохраняем оригинальные значения
+                    created_at: report.created_at,
                     updated_at: report.updated_at,
                     processing_started: report.processing_started,
                     completed_at: report.completed_at
                 }));
-            setActiveProcesses(active);
+
+            setAllActiveProcesses(active);
+            setCurrentPage(1);
 
             // Последние 5 отчетов
             const latestReports = reports
@@ -93,7 +107,7 @@ const ProcessControl = () => {
                 .map(report => ({
                     id: report.id,
                     name: report.name || `Отчет #${report.id}`,
-                    date: formatDateTime(report.created_at), // Форматируем дату
+                    date: formatDateTime(report.created_at),
                     status: mapReportStatus(report),
                     status_id: report.status_id,
                     created_at: report.created_at,
@@ -105,14 +119,10 @@ const ProcessControl = () => {
                     category_id: report.category_id,
                     category_name: (() => {
                         switch(report.category_id) {
-                            case null:
-                                return 'Загруженные отчеты';
-                            case 1:
-                                return 'Отчеты по проектам';
-                            case 2:
-                                return 'Отчеты по задачам';
-                            default:
-                                return 'Неизвестная категория';
+                            case null: return 'Загруженные отчеты';
+                            case 1: return 'Отчеты по проектам';
+                            case 2: return 'Отчеты по задачам';
+                            default: return 'Неизвестная категория';
                         }
                     })()
                 }));
@@ -123,10 +133,6 @@ const ProcessControl = () => {
         }
     };
 
-    useEffect(() => {
-        loadReports();
-    }, []);
-
     const parseCustomDate = (dateString) => {
         if (!dateString) return new Date(0);
         try {
@@ -134,10 +140,7 @@ const ProcessControl = () => {
             const [day, month, year] = datePart.split('.');
             const [hours, minutes] = timePart.split(':');
 
-            // Создаем дату в UTC+0 (без учета локального времени)
             const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-
-            // Корректируем на часовой пояс пользователя
             const userTimezoneOffset = new Date().getTimezoneOffset() * 60000;
             return new Date(utcDate.getTime() + userTimezoneOffset);
         } catch (e) {
@@ -163,25 +166,20 @@ const ProcessControl = () => {
             if (!reportResponse.ok) throw new Error('Ошибка при обновлении статуса отчета');
 
             // Обновляем списки
-            const updatedActive = activeProcesses.filter(p => p.id !== processId);
-            setActiveProcesses(updatedActive);
-
-            const updatedReports = recentFiles.map(report =>
+            setAllActiveProcesses(prev => prev.filter(p => p.id !== processId));
+            setRecentFiles(prev => prev.map(report =>
                 report.id === processId
                     ? { ...report, status: 'Завершен', status_id: 3 }
                     : report
-            );
-            setRecentFiles(updatedReports);
+            ));
 
             toast.success(`Процесс #${processId} завершен`, { position: "top-right" });
-
         } catch (error) {
             toast.error(`Ошибка: ${error.message}`, { position: "top-right" });
         }
     };
 
-    const handleShowDetails = async (report) => {
-        console.log('Открыт отчет:', report);
+    const handleShowDetails = (report) => {
         setSelectedReport(report);
         setShowDetailsModal(true);
     };
@@ -189,13 +187,11 @@ const ProcessControl = () => {
     const formatDateTime = (dateString) => {
         if (!dateString) return '—';
 
-        // Если дата уже в нужном формате
         if (dateString.includes(' в ')) {
             return dateString;
         }
 
         try {
-            // Для ISO строк корректируем часовой пояс
             const date = new Date(dateString);
             const timezoneOffset = date.getTimezoneOffset() * 60000;
             const adjustedDate = new Date(date.getTime() - timezoneOffset);
@@ -212,6 +208,70 @@ const ProcessControl = () => {
         }
     };
 
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+    const renderPagination = () => {
+        const pageNumbers = [];
+        const totalNumbers = 3;
+
+        if (totalPages <= 5) {
+            for (let i = 1; i <= totalPages; i++) {
+                pageNumbers.push(i);
+            }
+        } else {
+            pageNumbers.push(1);
+            if (currentPage > 3) {
+                pageNumbers.push('...');
+            }
+
+            let startPage = Math.max(2, currentPage - 1);
+            let endPage = Math.min(totalPages - 1, currentPage + 1);
+
+            for (let i = startPage; i <= endPage; i++) {
+                pageNumbers.push(i);
+            }
+
+            if (currentPage < totalPages - 2) {
+                pageNumbers.push('...');
+            }
+
+            pageNumbers.push(totalPages);
+        }
+
+        return (
+            <div className={styles.pagination}>
+                <button
+                    onClick={() => paginate(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className={styles.paginationButton}
+                >
+                    Назад
+                </button>
+
+                {pageNumbers.map((number, index) => (
+                    number === '...' ? (
+                        <span key={index} className={styles.paginationDots}>...</span>
+                    ) : (
+                        <button
+                            key={index}
+                            onClick={() => paginate(number)}
+                            className={`${styles.paginationButton} ${currentPage === number ? styles.active : ''}`}
+                        >
+                            {number}
+                        </button>
+                    )
+                ))}
+
+                <button
+                    onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className={styles.paginationButton}
+                >
+                    Вперед
+                </button>
+            </div>
+        );
+    };
 
     return (
         <div className={styles.processControl}>
@@ -219,29 +279,30 @@ const ProcessControl = () => {
                 <h3>Активные процессы</h3>
                 <div className={styles.processList}>
                     {activeProcesses.length > 0 ? (
-                        activeProcesses.map(process => (
-                            <div key={process.id} className={styles.processItem}>
-                                <div className={styles.processInfo}>
-                                    <span className={styles.reportName}>{process.name}</span>
-                                    <span>Пользователь: {process.creator}</span>
-                                    <span>Начато: {process.startedAt}</span>
-                                </div>
-                                <div className={styles.progressContainer}>
-                                    <progress value={process.progress} max="100" />
-                                    <span>{process.progress}%</span>
-                                </div>
-                                {process.status_id === 2 && (
-                                    <>
+                        <>
+                            {activeProcesses.map(process => (
+                                <div key={process.id} className={styles.processItem}>
+                                    <div className={styles.processInfo}>
+                                        <span className={styles.reportName}>{process.name}</span>
+                                        <span>Пользователь: {process.creator}</span>
+                                        <span>Начато: {process.startedAt}</span>
+                                    </div>
+                                    <div className={styles.progressContainer}>
+                                        <progress value={process.progress} max="100" />
+                                        <span>{process.progress}%</span>
+                                    </div>
+                                    {process.status_id === 2 && (
                                         <button
                                             className={styles.abortButton}
                                             onClick={() => handleCompleteProcess(process.id)}
                                         >
                                             Завершить
                                         </button>
-                                    </>
-                                )}
-                            </div>
-                        ))
+                                    )}
+                                </div>
+                            ))}
+                            {totalPages > 1 && renderPagination()}
+                        </>
                     ) : (
                         <p>Нет активных процессов</p>
                     )}
@@ -267,9 +328,9 @@ const ProcessControl = () => {
                                     <td>{file.name}</td>
                                     <td>{file.date}</td>
                                     <td>
-                                            <span className={`${styles.status} ${styles[file.status.toLowerCase().replace(' ', '')]}`}>
-                                                {file.status}
-                                            </span>
+                                        <span className={`${styles.status} ${styles[file.status.toLowerCase().replace(' ', '')]}`}>
+                                            {file.status}
+                                        </span>
                                     </td>
                                     <td>
                                         <button
@@ -305,7 +366,6 @@ const ProcessControl = () => {
                 </div>
             </div>
 
-            {/* Модальное окно с деталями отчета */}
             {showDetailsModal && (
                 <div className={styles.modalOverlay}>
                     <div className={styles.modalContent}>

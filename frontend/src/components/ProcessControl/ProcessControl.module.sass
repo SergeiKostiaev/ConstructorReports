@@ -307,3 +307,33 @@
 
   .progressContainer
     width: 100%
+
+.pagination
+  display: flex
+  justify-content: center
+  align-items: center
+  margin-top: 20px
+  gap: 5px
+
+.paginationButton
+  padding: 5px 10px
+  border: 1px solid idx.$main-btn
+  background-color: white
+  cursor: pointer
+  border-radius: 4px
+  transition: all 0.3s ease
+
+  &:hover:not(:disabled)
+    background-color: #f0f0f0
+    color: idx.$main-fonts
+
+  &:disabled
+    opacity: 0.5
+    cursor: not-allowed
+
+  &.active
+    background-color: idx.$main-btn
+    color: white
+
+.paginationDots
+  padding: 5px 10px
