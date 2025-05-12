@@ -36,24 +36,53 @@ const FormulaEditorModal = ({ formula, onSave, onClose }) => {
                 </button>
                 {showExamples && (
                     <div className={styles.formulaExamples}>
-                        <h4>Примеры формул:</h4>
+                        <h4>Примеры формул</h4>
                         <ul>
-                            <li><code>SUM([revenue])</code> - Сумма по столбцу revenue</li>
-                            <li><code>AVG([temperature])</code> - Среднее значение</li>
-                            <li><code>COUNT([id])</code> - Количество записей</li>
-                            <li><code>MIN([price])</code> - Минимальное значение</li>
-                            <li><code>MAX([price])</code> - Максимальное значение</li>
-                            <li><code>STDDEV([score])</code> - Стандартное отклонение</li>
-                            <li><code>MOVING_AVG([sales], 7)</code> - 7-дневное скользящее среднее</li>
-                            <li><code>CORREL([x], [y])</code> - Корреляция между столбцами</li>
-                            <li><code>LOG([value])</code> - Натуральный логарифм</li>
-                            <li><code>SQRT([value])</code> - Квадратный корень</li>
-                            <li><code>[score] &gt; AVG([score])</code> ? "Выше среднего" : "Ниже"</li>
-                            <li><code>SUM([profit]) / SUM([revenue]) * 100</code> - Маржа в %</li>
-                            <li><code>IF([status] == "active", [price] * 0.9, [price])</code> - Скидка 10% для активных</li>
-                            <li><code>ROUND([value], 2)</code> - Округление до 2 знаков</li>
-                            <li><code>CONCAT([name], " ", [surname])</code> - Объединение строк</li>
-                            <li><code>YEAR([date])</code> - Год из даты</li>
+                            {[
+                                { formula: 'SUM([Зарплата (руб.)])', desc: 'Общий фонд оплаты труда' },
+                                { formula: 'AVG([Зарплата (руб.)])', desc: 'Средняя зарплата' },
+                                { formula: 'MIN([Зарплата (руб.)])', desc: 'Минимальная зарплата' },
+                                { formula: 'MAX([Зарплата (руб.)])', desc: 'Максимальная зарплата' },
+                                { formula: 'STDDEV([Зарплата (руб.)])', desc: 'Стандартное отклонение зарплат' },
+                                { formula: 'YEAR([Дата рождения])', desc: 'Год из даты' },
+                                { formula: 'DATEDIFF([Дата приёма], TODAY())', desc: 'Стаж работы в днях' },
+                                { formula: 'COMPARE_DATES([Дата рождения], "19.05.2000", "<")', desc: 'Категоризация по дате рождения' },
+                                { formula: 'IF(AND([Подарки] == "Да", [Зарплата] < 60000), ...)', desc: 'Проверка получения подарков' },
+                                { formula: 'CONCAT([ФИО], ", ", [Должность])', desc: 'Конкатенация строк' },
+                                { formula: '[Подарки] == "Да" ? "Получает подарки" : "Без подарков"', desc: 'Проверка подарков (тернарный оператор)' },
+                                { formula: '[Зарплата (руб.)] > AVG([Зарплата (руб.)]) ? "Выше среднего" : "Ниже среднего"', desc: 'Сравнение зарплаты со средним' },
+                                { formula: '[Должность] == "Менеджер по продажам" ? [Зарплата (руб.)] * 1.1 : [Зарплата (руб.)]', desc: 'Повышение зарплаты менеджерам' },
+                                { formula: '[Примечание] == "" ? "Нет примечания" : [Примечание]', desc: 'Проверка пустого примечания' },
+                                { formula: 'ROUND([Зарплата (руб.)] / 30 * [Отпуск (дни)], 2)', desc: 'Расчёт отпускных' },
+                                { formula: '[Зарплата (руб.)] * 12', desc: 'Годовая зарплата' },
+                                { formula: 'LOG([Зарплата (руб.)])', desc: 'Натуральный логарифм зарплаты' },
+                                { formula: 'IF(AND([column_9] == "Да", [zarplata_rub] < 60000), "Низкооплачиваемый, но с подарками", "Другая категория")', desc: 'Категоризация по зарплате и подаркам' },
+                                { formula: 'IF([Должность] CONTAINS "специалист", [Зарплата (руб.)] * 1.05, [Зарплата (руб.)])', desc: 'Повышение зарплаты специалистам' },
+                                { formula: 'CORREL([Зарплата (руб.)], [Год из даты])', desc: 'Корреляция зарплаты и года рождения' },
+                                { formula: 'MOVING_AVG([Зарплата (руб.)], 3)', desc: 'Скользящее среднее зарплаты' },
+                            ].map((item, index) => (
+                                <li
+                                    key={index}
+                                    data-description={item.desc}
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(item.formula)
+                                            .then(() => {
+                                                // Можно добавить уведомление или временное выделение
+                                                const element = document.querySelector(`[data-description="${item.desc}"]`);
+                                                if (element) {
+                                                    element.classList.add(styles.copied);
+                                                    setTimeout(() => {
+                                                        element.classList.remove(styles.copied);
+                                                    }, 1000);
+                                                }
+                                            })
+                                            .catch(err => console.error('Ошибка копирования:', err));
+                                    }}
+                                    style={{cursor: 'pointer'}}
+                                >
+                                    <code>{item.formula}</code>
+                                </li>
+                            ))}
                         </ul>
                     </div>
                 )}
@@ -99,20 +128,39 @@ const ReportCreation = ({ idReport }) => {
 
         if (typeof value === 'string') {
             const trimmed = value.trim().replace(/"/g, '');
-            const dateMatch = trimmed.match(/^(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})$/);
-            if (dateMatch) {
-                const [_, day, month, year] = dateMatch;
-                const pad = num => num.length === 1 ? `0${num}` : num;
-                const normalizedDate = `${pad(day)}.${pad(month)}.${year}`;
-                const date = new Date(normalizedDate.split('.').reverse().join('-'));
-                return !isNaN(date.getTime()) ? date.getTime() : null;
-            }
 
-            const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-            if (isoMatch) {
-                const [_, year, month, day] = isoMatch;
-                const date = new Date(year, month - 1, day);
-                return !isNaN(date.getTime()) ? date.getTime() : null;
+            // Попробуем разные форматы дат
+            const formats = [
+                /^(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})$/, // DD.MM.YYYY
+                /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // YYYY-MM-DD
+                /^(\d{4})(\d{2})(\d{2})$/, // YYYYMMDD
+                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // MM/DD/YYYY
+            ];
+
+            for (const format of formats) {
+                const match = trimmed.match(format);
+                if (match) {
+                    let day, month, year;
+
+                    if (format === formats[0] || format === formats[3]) {
+                        // DD.MM.YYYY или MM/DD/YYYY
+                        day = format === formats[0] ? match[1] : match[2];
+                        month = format === formats[0] ? match[2] : match[1];
+                        year = match[3];
+                    } else {
+                        // YYYY-MM-DD или YYYYMMDD
+                        year = match[1];
+                        month = match[2];
+                        day = match[3];
+                    }
+
+                    const pad = num => num.length === 1 ? `0${num}` : num;
+                    const normalizedDate = `${pad(day)}.${pad(month)}.${year}`;
+                    const date = new Date(normalizedDate.split('.').reverse().join('-'));
+                    if (!isNaN(date.getTime())) {
+                        return date.getTime();
+                    }
+                }
             }
         }
 
@@ -149,18 +197,22 @@ const ReportCreation = ({ idReport }) => {
 
     const initParserFunctions = () => {
         const parser = new Parser();
-        parser.functions.DATE = (dateStr) => parseDateValue(dateStr);
 
         // Добавляем пользовательские функции
         parser.functions.DATEDIFF = (date1, date2) => {
             const d1 = parseDateValue(date1);
             const d2 = parseDateValue(date2);
+            if (d1 === null || d2 === null) return null;
             return (d1 - d2) / (1000 * 60 * 60 * 24); // Разница в днях
         };
 
         parser.functions.CONTAINS = (str, substr) => {
             if (typeof str !== 'string' || typeof substr !== 'string') return false;
             return str.includes(substr);
+        };
+
+        parser.functions.AND = (...args) => {
+            return args.every(arg => Boolean(arg));
         };
 
         parser.functions.MOVING_AVG = (values, windowSize) => {
@@ -201,7 +253,10 @@ const ReportCreation = ({ idReport }) => {
             SQRT: Math.sqrt,
             POW: Math.pow,
             ABS: Math.abs,
-            ROUND: (num, decimals = 0) => Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals),
+            ROUND: (num, decimals = 0) => {
+                const factor = Math.pow(10, decimals);
+                return Math.round((num + Number.EPSILON) * factor) / factor;
+            },
             IF: (condition, trueVal, falseVal) => condition ? trueVal : falseVal,
             CONCAT: (...args) => args.join(''),
             DATE: (dateStr) => parseDateValue(dateStr),
@@ -241,7 +296,10 @@ const ReportCreation = ({ idReport }) => {
                 }
             },
             CORREL: (values1, values2) => {
-                if (!Array.isArray(values1) || !Array.isArray(values2) || values1.length !== values2.length) return null;
+                if (!Array.isArray(values1)) values1 = [values1];
+                if (!Array.isArray(values2)) values2 = [values2];
+
+                if (values1.length !== values2.length || values1.length === 0) return null;
 
                 const nums1 = values1.map(v => parseFloat(v)).filter(v => !isNaN(v));
                 const nums2 = values2.map(v => parseFloat(v)).filter(v => !isNaN(v));
@@ -260,7 +318,10 @@ const ReportCreation = ({ idReport }) => {
                 }
 
                 return cov / Math.sqrt(stddev1 * stddev2);
-            }
+            },
+            // Добавляем поддержку CASE WHEN
+            WHEN: (condition, value) => condition ? value : null,
+            ELSE: (value) => value
         };
 
         return parser;
@@ -280,14 +341,21 @@ const ReportCreation = ({ idReport }) => {
         }
     }, [idReport]);
 
+    const normalizeNumbers = (value) => {
+        if (typeof value === 'string') {
+            return value.replace(/,/g, '.');
+        }
+        return value;
+    };
+
     const calculateAggregations = (values, func) => {
         if (func.toUpperCase() === 'COUNT') {
             return values.filter(v => v !== null && v !== undefined && v !== '').length;
         }
 
         const nums = values.map(v => {
-            if (typeof v === 'string' && v.includes(',')) {
-                v = v.replace(',', '.');
+            if (typeof v === 'string') {
+                v = normalizeNumbers(v);
             }
             return parseFloat(v);
         }).filter(v => !isNaN(v));
@@ -341,35 +409,49 @@ const ReportCreation = ({ idReport }) => {
     };
 
     const handleAddWhereColumn = () => {
-        for (let i = 0; i < customWhereColumns.length; i++) {
-            if (Array.isArray(customWhereColumns[i].where)) {
-                customWhereColumns[i].where = {};
-                break;
+        setCustomWhereColumns(prev => {
+            const newColumns = [...prev];
+            for (let i = 0; i < newColumns.length; i++) {
+                if (Array.isArray(newColumns[i].where)) {
+                    newColumns[i].where = {};
+                    break;
+                }
             }
-        }
-        setCustomWhereColumns([...customWhereColumns]);
+            return newColumns;
+        });
     };
 
     const handleColumnWhereChange = (name, field, value = '', where = false) => {
         setCustomWhereColumns(prev => prev.map(column => {
             if (column.name === name) {
-                column.where = Array.isArray(column.where) ? {} : column.where || {};
-                if (where) column.where[field] = value;
-            } else {
-                column.where = [];
+                if (where) {
+                    return {
+                        ...column,
+                        where: {
+                            ...(column.where || {}),
+                            [field]: value
+                        }
+                    };
+                }
+                return {
+                    ...column,
+                    [field]: value
+                };
             }
             return column;
         }));
     };
 
     const handleDeleteWhereColumn = (name) => {
-        for (let i = 0; i < customWhereColumns.length; i++) {
-            if (customWhereColumns[i].name === name) {
-                customWhereColumns[i].where = [];
-                break;
+        setCustomWhereColumns(prev => prev.map(column => {
+            if (column.name === name) {
+                return {
+                    ...column,
+                    where: []
+                };
             }
-        }
-        setCustomWhereColumns([...customWhereColumns]);
+            return column;
+        }));
     };
 
     const maxNumber = customWhereColumns.reduce((max, col) => {
@@ -398,7 +480,10 @@ const ReportCreation = ({ idReport }) => {
     const handleColumnChange = (index, field, value = '') => {
         setCustomWhereColumns(prev => prev.map((column, iCol) => {
             if (iCol === index) {
-                column[field] = value;
+                return {
+                    ...column,
+                    [field]: value
+                };
             }
             return column;
         }));
@@ -440,6 +525,187 @@ const ReportCreation = ({ idReport }) => {
 
         setCustomWhereColumns(newColumns);
         setDataReport(newData);
+    };
+
+    const transformCaseExpression = (expr) => {
+        // Преобразуем CASE WHEN ... THEN ... ELSE ... END в серию вложенных IF
+        return expr.replace(
+            /CASE\s+WHEN\s+(.+?)\s+THEN\s+(.+?)(?:\s+WHEN\s+(.+?)\s+THEN\s+(.+?))*\s+ELSE\s+(.+?)\s+END/gi,
+            (match, firstCondition, firstValue, ...rest) => {
+                let result = `IF(${firstCondition}, ${firstValue}`;
+                const pairs = [];
+
+                // Обрабатываем оставшиеся WHEN/THEN пары
+                for (let i = 0; i < rest.length - 1; i += 2) {
+                    if (rest[i] && rest[i+1]) {
+                        pairs.push(`IF(${rest[i]}, ${rest[i+1]}`);
+                    }
+                }
+
+                // Добавляем ELSE в конец
+                const elseValue = rest[rest.length - 1];
+                result = pairs.join(', ') + (pairs.length > 0 ? ', ' : '') + result;
+
+                // Закрываем все скобки
+                return result + ')' + ')'.repeat(pairs.length);
+            }
+        );
+    };
+
+    const filterDataReport = () => {
+        const parser = initParserFunctions();
+        const arrayData = [...dataReport];
+        const newArrayWhereData = [];
+
+        const prepareExpression = (expr) => {
+            if (typeof expr !== 'string') return expr;
+
+            // Преобразуем CASE WHEN выражения
+            expr = transformCaseExpression(expr);
+
+            // Преобразуем IF с датами
+            expr = expr.replace(
+                /IF\s*\(\s*\[([^\]]+)\]\s*(<=|>=|<|>|==|!=)\s*"(\d{2}\.\d{2}\.\d{4})"\s*,\s*("[^"]*"|[^,]+)\s*,\s*("[^"]*"|[^)]+)\s*\)/g,
+                (match, colName, operator, dateStr, trueVal, falseVal) => {
+                    return `IF(COMPARE_DATES([${colName}], "${dateStr}", "${operator}"), ${trueVal}, ${falseVal})`;
+                }
+            );
+
+            expr = expr.replace(/&&/g, ' AND ');
+            expr = expr.replace(/\|\|/g, ' OR ');
+
+            // Преобразуем CONTAINS
+            expr = expr.replace(
+                /\[([^\]]+)\]\s+CONTAINS\s+"([^"]+)"/g,
+                (match, colName, substr) => {
+                    return `CONTAINS([${colName}], "${substr}")`;
+                }
+            );
+
+            return expr;
+        };
+
+        customWhereColumns.forEach((column, iCol) => {
+            if (column.fx) {
+                const aggMatch = column.fx.match(/^(SUM|AVG|COUNT|MIN|MAX|STDDEV)\(\[(.+?)\]\)/i);
+                const windowMatch = column.fx.match(/^MOVING_AVG\(\[(.+?)\],\s*(\d+)\)/i);
+                const corrMatch = column.fx.match(/^CORREL\(\[(.+?)\],\s*\[(.+?)\]\)/i);
+
+                if (aggMatch) {
+                    const [_, func, colName] = aggMatch;
+                    const targetCol = customWhereColumns.findIndex(c => c.name === colName);
+                    if (targetCol >= 0) {
+                        const values = arrayData.map(row => row[targetCol]);
+                        const result = calculateAggregations(values, func);
+                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
+                    }
+                }
+                else if (windowMatch) {
+                    const [_, colName, windowSize] = windowMatch;
+                    const targetCol = customWhereColumns.findIndex(c => c.name === colName);
+                    if (targetCol >= 0) {
+                        const values = arrayData.map(row => row[targetCol]);
+                        const results = processTimeSeries(values, parseInt(windowSize));
+                        arrayData.forEach((row, i) => row[iCol] = results[i] !== null ? results[i] : 'N/A');
+                    }
+                }
+                else if (corrMatch) {
+                    const [_, colName1, colName2] = corrMatch;
+                    const targetCol1 = customWhereColumns.findIndex(c => c.name === colName1);
+                    const targetCol2 = customWhereColumns.findIndex(c => c.name === colName2);
+
+                    if (targetCol1 >= 0 && targetCol2 >= 0) {
+                        const values1 = arrayData.map(row => row[targetCol1]);
+                        const values2 = arrayData.map(row => row[targetCol2]);
+                        const result = calculateCorrelation(values1, values2);
+                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
+                    }
+                }
+                else {
+                    arrayData.forEach((record, rowIndex) => {
+                        try {
+                            const variables = {};
+                            customWhereColumns.forEach((col, index) => {
+                                let value = record[index];
+                                if (value === undefined || value === null) value = '';
+
+                                if (col.type === 'date' || col.name.toLowerCase().includes('date')) {
+                                    value = parseDateValue(value);
+                                    variables[col.name] = value !== null ? value : '""';
+                                } else {
+                                    // Для строковых значений добавляем кавычки
+                                    if (typeof value === 'string' && !/^-?\d*\.?\d+$/.test(value)) {
+                                        variables[col.name] = `"${value}"`;
+                                    } else {
+                                        variables[col.name] = value;
+                                    }
+                                }
+                            });
+
+                            if (column.fx) {
+                                let preparedExpression = prepareExpression(column.fx);
+
+                                // Заменяем ссылки на столбцы их значениями
+                                preparedExpression = preparedExpression.replace(/\[([^\]]+)\]/g,
+                                    (match, colName) => variables[colName] || '""'
+                                );
+
+                                // Вычисляем выражение
+                                const result = parser.parse(preparedExpression).evaluate(variables);
+
+                                // Форматируем результат
+                                if (typeof result === 'number') {
+                                    if (Number.isInteger(result)) {
+                                        record[iCol] = result;
+                                    } else {
+                                        record[iCol] = parseFloat(result.toFixed(4));
+                                    }
+                                } else {
+                                    record[iCol] = result;
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`Ошибка в выражении для столбца ${column.name}, строка ${rowIndex + 1}:`, error);
+                            record[iCol] = `Ошибка: ${error.message}`;
+                        }
+                    });
+                }
+            }
+
+            if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
+                const { operator = dataWhereColumns[0], value } = column.where;
+                arrayData.forEach((record) => {
+                    try {
+                        let recordValue = record[iCol];
+                        let compareValue = value;
+
+                        if (column.type === 'date' || column.name.toLowerCase().includes('date')) {
+                            recordValue = parseDateValue(recordValue);
+                            compareValue = parseDateValue(compareValue);
+                        } else {
+                            recordValue = normalizeNumbers(String(recordValue));
+                            compareValue = normalizeNumbers(String(compareValue));
+
+                            const numRecordValue = parseFloat(recordValue);
+                            const numCompareValue = parseFloat(compareValue);
+                            if (!isNaN(numRecordValue)) recordValue = numRecordValue;
+                            if (!isNaN(numCompareValue)) compareValue = numCompareValue;
+                        }
+
+                        const conditionExpr = `${recordValue} ${operator} ${compareValue}`;
+                        const condition = parser.parse(conditionExpr).evaluate();
+
+                        if (condition) {
+                            newArrayWhereData.push(record);
+                        }
+                    } catch (error) {
+                        console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
+                        record[iCol] = `Ошибка: ${error.message}`;
+                    }
+                });
+            }
+        });
+        return newArrayWhereData.length > 0 ? newArrayWhereData : arrayData;
     };
 
     useEffect(() => {
@@ -508,129 +774,6 @@ const ReportCreation = ({ idReport }) => {
                 if (extensionsData.success) setDataExtensions(extensionsData.data);
             });
     }, [currentReportId, reportNotFound]);
-
-    const filterDataReport = () => {
-        const parser = initParserFunctions();
-        const arrayData = [...dataReport];
-        const newArrayWhereData = [];
-
-        const prepareExpression = (expr) => {
-            if (typeof expr !== 'string') return expr;
-
-            expr = expr.replace(
-                /IF\s*\(\s*\[([^\]]+)\]\s*(<=|>=|<|>|==|!=)\s*"(\d{2}\.\d{2}\.\d{4})"\s*,\s*("[^"]*"|[^,]+)\s*,\s*("[^"]*"|[^)]+)\s*\)/g,
-                (match, colName, operator, dateStr, trueVal, falseVal) => {
-                    return `IF(COMPARE_DATES([${colName}], "${dateStr}", "${operator}"), ${trueVal}, ${falseVal})`;
-                }
-            );
-
-            return expr;
-        };
-
-        customWhereColumns.forEach((column, iCol) => {
-            if (column.fx) {
-                const aggMatch = column.fx.match(/^(SUM|AVG|COUNT|MIN|MAX|STDDEV)\(\[(.+?)\]\)/i);
-                const windowMatch = column.fx.match(/^MOVING_AVG\(\[(.+?)\],\s*(\d+)\)/i);
-                const corrMatch = column.fx.match(/^CORREL\(\[(.+?)\],\s*\[(.+?)\]\)/i);
-
-                if (aggMatch) {
-                    const [_, func, colName] = aggMatch;
-                    const targetCol = customWhereColumns.findIndex(c => c.name === colName);
-                    if (targetCol >= 0) {
-                        const values = arrayData.map(row => row[targetCol]);
-                        const result = calculateAggregations(values, func);
-                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
-                    }
-                }
-                else if (windowMatch) {
-                    const [_, colName, windowSize] = windowMatch;
-                    const targetCol = customWhereColumns.findIndex(c => c.name === colName);
-                    if (targetCol >= 0) {
-                        const values = arrayData.map(row => row[targetCol]);
-                        const results = processTimeSeries(values, parseInt(windowSize));
-                        arrayData.forEach((row, i) => row[iCol] = results[i] !== null ? results[i] : 'N/A');
-                    }
-                }
-                else if (corrMatch) {
-                    const [_, colName1, colName2] = corrMatch;
-                    const targetCol1 = customWhereColumns.findIndex(c => c.name === colName1);
-                    const targetCol2 = customWhereColumns.findIndex(c => c.name === colName2);
-
-                    if (targetCol1 >= 0 && targetCol2 >= 0) {
-                        const values1 = arrayData.map(row => row[targetCol1]);
-                        const values2 = arrayData.map(row => row[targetCol2]);
-                        const result = calculateCorrelation(values1, values2);
-                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
-                    }
-                }
-                else {
-                    arrayData.forEach((record) => {
-                        try {
-                            const variables = {};
-                            customWhereColumns.forEach((col, index) => {
-                                let value = record[index];
-                                if (value === undefined || value === null) value = '';
-
-                                if (col.type === 'date' || col.name.toLowerCase().includes('date')) {
-                                    value = parseDateValue(value);
-                                    variables[col.name] = value !== null ? value : '""';
-                                } else {
-                                    variables[col.name] = typeof value === 'string' ? `"${value}"` : value;
-                                }
-                            });
-
-                            if (column.fx) {
-                                let preparedExpression = prepareExpression(column.fx);
-                                preparedExpression = preparedExpression.replace(/\[([^\]]+)\]/g,
-                                    (match, colName) => variables[colName] || '""'
-                                );
-
-                                const result = parser.parse(preparedExpression).evaluate(variables);
-                                record[iCol] = result;
-                            }
-                        } catch (error) {
-                            console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
-                            record[iCol] = `Ошибка: ${error.message}`;
-                        }
-                    });
-                }
-            }
-
-            if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
-                const { operator = dataWhereColumns[0], value } = column.where;
-                arrayData.forEach((record) => {
-                    try {
-                        let recordValue = record[iCol];
-                        let compareValue = value;
-
-                        if (column.type === 'date' || column.name.toLowerCase().includes('date')) {
-                            recordValue = parseDateValue(recordValue);
-                            compareValue = parseDateValue(compareValue);
-                        } else {
-                            recordValue = normalizeNumbers(String(recordValue));
-                            compareValue = normalizeNumbers(String(compareValue));
-
-                            const numRecordValue = parseFloat(recordValue);
-                            const numCompareValue = parseFloat(compareValue);
-                            if (!isNaN(numRecordValue)) recordValue = numRecordValue;
-                            if (!isNaN(numCompareValue)) compareValue = numCompareValue;
-                        }
-
-                        const conditionExpr = `${recordValue} ${operator} ${compareValue}`;
-                        const condition = parser.parse(conditionExpr).evaluate();
-
-                        if (condition) {
-                            newArrayWhereData.push(record);
-                        }
-                    } catch (error) {
-                        console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
-                        record[iCol] = `Ошибка: ${error.message}`;
-                    }
-                });
-            }
-        });
-        return newArrayWhereData.length > 0 ? newArrayWhereData : arrayData;
-    };
 
     const handlePreview = () => {
         const bearerToken = localStorage.getItem('api_token');
@@ -860,7 +1003,7 @@ const ReportCreation = ({ idReport }) => {
                             <select
                                 className={styles.slct_column}
                                 value={column.name || ''}
-                                onChange={(e) => handleColumnWhereChange(e.target.value, 'name')}
+                                onChange={(e) => handleColumnWhereChange(column.name, 'name', e.target.value)}
                             >
                                 {dataHeaders.map((header) => (
                                     <option key={header.name} value={header.name}>
@@ -912,9 +1055,9 @@ const ReportCreation = ({ idReport }) => {
                                             {...provided.dragHandleProps}
                                             className={styles.column}
                                         >
-                <span className={styles.dragHandle} {...provided.dragHandleProps}>
-                  ☰
-                </span>
+                                            <span className={styles.dragHandle} {...provided.dragHandleProps}>
+                                                ☰
+                                            </span>
                                             <span>{index + 1}.</span>
                                             <div className={styles.radioGroup}>
                                                 <label>
@@ -933,25 +1076,13 @@ const ReportCreation = ({ idReport }) => {
                                                 </label>
                                             </div>
 
-                                            {(typeof column.name === "string" && !column.name.includes('new_column_')) && (
-                                                <input
-                                                    type="text"
-                                                    className={styles.inpt_js}
-                                                    value={column.title || ''}
-                                                    onChange={(e) => handleColumnChange(index, "title", e.target.value)}
-                                                    placeholder="Введите заголовок"
-                                                />
-                                            )}
-
-                                            {column.name?.includes('new_column_') && (
-                                                <input
-                                                    type="text"
-                                                    className={styles.inpt_js}
-                                                    value={column.title || ''}
-                                                    onChange={(e) => handleColumnChange(index, "title", e.target.value)}
-                                                    placeholder="Введите заголовок"
-                                                />
-                                            )}
+                                            <input
+                                                type="text"
+                                                className={styles.inpt_js}
+                                                value={column.title || ''}
+                                                onChange={(e) => handleColumnChange(index, "title", e.target.value)}
+                                                placeholder="Введите заголовок"
+                                            />
 
                                             {column.type === "fx" && (
                                                 <div className={styles.formulaInputContainer}>
