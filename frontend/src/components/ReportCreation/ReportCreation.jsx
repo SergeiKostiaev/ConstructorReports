@@ -203,7 +203,7 @@ const ReportCreation = ({ idReport }) => {
             const d1 = parseDateValue(date1);
             const d2 = parseDateValue(date2);
             if (d1 === null || d2 === null) return null;
-            return (d1 - d2) / (1000 * 60 * 60 * 24); // Разница в днях
+            return Math.abs((d1 - d2) / (1000 * 60 * 60 * 24) / 360); // Разница в днях
         };
 
         parser.functions.CONTAINS = (str, substr) => {
