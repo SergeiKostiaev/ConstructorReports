@@ -253,6 +253,8 @@ const ReportCreation = ({ idReport }) => {
             SQRT: Math.sqrt,
             POW: Math.pow,
             ABS: Math.abs,
+            FLOOR: Math.floor,
+            CEIL: Math.ceil,
             ROUND: (num, decimals = 0) => {
                 const factor = Math.pow(10, decimals);
                 return Math.round((num + Number.EPSILON) * factor) / factor;
