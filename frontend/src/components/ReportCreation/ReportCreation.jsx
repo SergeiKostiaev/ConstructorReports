@@ -56,10 +56,15 @@ const FormulaEditorModal = ({ formula, onSave, onClose }) => {
                                 { formula: 'ROUND([Зарплата (руб.)] / 30 * [Отпуск (дни)], 2)', desc: 'Расчёт отпускных' },
                                 { formula: '[Зарплата (руб.)] * 12', desc: 'Годовая зарплата' },
                                 { formula: 'LOG([Зарплата (руб.)])', desc: 'Натуральный логарифм зарплаты' },
-                                { formula: 'IF(AND([column_9] == "Да", [zarplata_rub] < 60000), "Низкооплачиваемый, но с подарками", "Другая категория")', desc: 'Категоризация по зарплате и подаркам' },
+                                { formula: 'IF(AND([Подарки] == "Да", [Зарплата] < 60000), "Низкооплачиваемый, но с подарками", "Другая категория")', desc: 'Категоризация по зарплате и подаркам' },
                                 { formula: 'IF([Должность] CONTAINS "специалист", [Зарплата (руб.)] * 1.05, [Зарплата (руб.)])', desc: 'Повышение зарплаты специалистам' },
                                 { formula: 'CORREL([Зарплата (руб.)], [Год из даты])', desc: 'Корреляция зарплаты и года рождения' },
                                 { formula: 'MOVING_AVG([Зарплата (руб.)], 3)', desc: 'Скользящее среднее зарплаты' },
+                                { formula: 'IF([Возраст] < 18, "Юный", \n' +
+                                        'IF([Возраст] <= 30, "Молодой",\n' +
+                                        'IF([Возраст] <= 50, "Взрослый", "Старший")))', desc: 'IF несколько условий' },
+                                { formula: 'FLOOR(DATEDIFF([Дата_рождения], TODAY()))', desc: 'Округление в меньшую сторону, после запятой' },
+                                { formula: 'CEIL(DATEDIFF([Значение], TODAY()))', desc: 'Округление в большую сторону, после запятой' }
                             ].map((item, index) => (
                                 <li
                                     key={index}
@@ -229,11 +234,19 @@ const ReportCreation = ({ idReport }) => {
         };
 
         parser.functions.CASE = (...args) => {
-            // Реализация CASE через вложенные IF
-            for (let i = 0; i < args.length - 1; i += 2) {
-                if (args[i]) return args[i + 1];
+            // Проверяем условия по порядку
+            for (let i = 0; i < args.length; i += 2) {
+                // Если это последний аргумент (ELSE без WHEN)
+                if (i === args.length - 1) {
+                    return args[i];
+                }
+
+                // Проверяем условие
+                if (args[i] === true || args[i] === 1) {
+                    return args[i+1];
+                }
             }
-            return args.length % 2 === 1 ? args[args.length - 1] : null;
+            return null;
         };
 
         parser.functions = {
@@ -253,7 +266,7 @@ const ReportCreation = ({ idReport }) => {
             SQRT: Math.sqrt,
             POW: Math.pow,
             ABS: Math.abs,
-            FLOOR: Math.floor,
+            FLOOR: Math.floor,  // Округление в меньшую сторону
             CEIL: Math.ceil,
             ROUND: (num, decimals = 0) => {
                 const factor = Math.pow(10, decimals);
@@ -323,7 +336,7 @@ const ReportCreation = ({ idReport }) => {
             },
             // Добавляем поддержку CASE WHEN
             WHEN: (condition, value) => condition ? value : null,
-            ELSE: (value) => value
+            ELSE: (value) => value,
         };
 
         return parser;
