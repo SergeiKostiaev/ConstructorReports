@@ -102,12 +102,13 @@ const FormulaEditorModal = ({ formula, onSave, onClose }) => {
 
 const ReportCreation = ({ idReport }) => {
     const [customWhereColumns, setCustomWhereColumns] = useState([]);
-    const [dataWhereColumns, setDataWhereColumns] = useState([]);
+    const [filters, setFilters] = useState([]);
     const [dataHeaders, setDataHeaders] = useState([]);
     const [dataReport, setDataReport] = useState([]);
     const [newDataReport, setNewDataReport] = useState([]);
     const [dataCategories, setDataCategories] = useState([]);
     const [dataExtensions, setDataExtensions] = useState([]);
+    const [dataWhereColumns, setDataWhereColumns] = useState(['==', '!=', '>', '>=', '<', '<=', 'contains', 'not contains']); // Добавлено состояние
     const [name, setName] = useState("");
     const [originalName, setOriginalName] = useState("");
     const [selectedExtension, setSelectedExtension] = useState("");
@@ -422,51 +423,22 @@ const ReportCreation = ({ idReport }) => {
 
         return cov / Math.sqrt(stddev1 * stddev2);
     };
-
-    const handleAddWhereColumn = () => {
-        setCustomWhereColumns(prev => {
-            const newColumns = [...prev];
-            for (let i = 0; i < newColumns.length; i++) {
-                if (Array.isArray(newColumns[i].where)) {
-                    newColumns[i].where = {};
-                    break;
-                }
-            }
-            return newColumns;
-        });
+    const handleAddFilter = () => {
+        setFilters([...filters, {
+            column: dataHeaders[0]?.name || '',
+            operator: '==',
+            value: ''
+        }]);
     };
 
-    const handleColumnWhereChange = (name, field, value = '', where = false) => {
-        setCustomWhereColumns(prev => prev.map(column => {
-            if (column.name === name) {
-                if (where) {
-                    return {
-                        ...column,
-                        where: {
-                            ...(column.where || {}),
-                            [field]: value
-                        }
-                    };
-                }
-                return {
-                    ...column,
-                    [field]: value
-                };
-            }
-            return column;
-        }));
+    const handleFilterChange = (index, field, value) => {
+        setFilters(prev => prev.map((filter, i) =>
+            i === index ? { ...filter, [field]: value } : filter
+        ));
     };
 
-    const handleDeleteWhereColumn = (name) => {
-        setCustomWhereColumns(prev => prev.map(column => {
-            if (column.name === name) {
-                return {
-                    ...column,
-                    where: []
-                };
-            }
-            return column;
-        }));
+    const handleDeleteFilter = (index) => {
+        setFilters(prev => prev.filter((_, i) => i !== index));
     };
 
     const maxNumber = customWhereColumns.reduce((max, col) => {
@@ -569,8 +541,7 @@ const ReportCreation = ({ idReport }) => {
 
     const filterDataReport = () => {
         const parser = initParserFunctions();
-        const arrayData = [...dataReport];
-        const newArrayWhereData = [];
+        let filteredData = [...dataReport];
 
         const prepareExpression = (expr) => {
             if (typeof expr !== 'string') return expr;
@@ -600,44 +571,111 @@ const ReportCreation = ({ idReport }) => {
             return expr;
         };
 
+        // 1. Сначала применяем глобальные фильтры к исходным данным
+        if (filters.length > 0) {
+            filteredData = filteredData.filter(row => {
+                return filters.every(filter => {
+                    try {
+                        const columnIndex = customWhereColumns.findIndex(c => c.name === filter.column);
+                        if (columnIndex === -1) return true;
+
+                        let rowValue = row[columnIndex];
+                        let filterValue = filter.value;
+
+                        // Обработка дат
+                        const isDateColumn = customWhereColumns[columnIndex].type === 'date' ||
+                            customWhereColumns[columnIndex].name.toLowerCase().includes('date');
+
+                        if (isDateColumn) {
+                            rowValue = parseDateValue(rowValue);
+                            filterValue = parseDateValue(filterValue);
+                        } else {
+                            // Обработка чисел и строк
+                            rowValue = normalizeNumbers(String(rowValue));
+                            filterValue = normalizeNumbers(String(filterValue));
+
+                            const numRowValue = parseFloat(rowValue);
+                            const numFilterValue = parseFloat(filterValue);
+                            if (!isNaN(numRowValue)) rowValue = numRowValue;
+                            if (!isNaN(numFilterValue)) filterValue = numFilterValue;
+                        }
+
+                        // Применяем операторы сравнения
+                        switch(filter.operator) {
+                            case '==':
+                                return rowValue == filterValue;
+                            case '!=':
+                                return rowValue != filterValue;
+                            case '>':
+                                return rowValue > filterValue;
+                            case '>=':
+                                return rowValue >= filterValue;
+                            case '<':
+                                return rowValue < filterValue;
+                            case '<=':
+                                return rowValue <= filterValue;
+                            case 'contains':
+                                return String(rowValue).toLowerCase().includes(String(filterValue).toLowerCase());
+                            case 'not contains':
+                                return !String(rowValue).toLowerCase().includes(String(filterValue).toLowerCase());
+                            case 'is empty':
+                                return rowValue === '' || rowValue === null || rowValue === undefined;
+                            case 'is not empty':
+                                return rowValue !== '' && rowValue !== null && rowValue !== undefined;
+                            default:
+                                return true;
+                        }
+                    } catch (error) {
+                        console.error('Ошибка при фильтрации:', error);
+                        return false;
+                    }
+                });
+            });
+        }
+
+        // 2. Затем применяем формулы к УЖЕ ОТФИЛЬТРОВАННЫМ данным
         customWhereColumns.forEach((column, iCol) => {
             if (column.fx) {
                 const aggMatch = column.fx.match(/^(SUM|AVG|COUNT|MIN|MAX|STDDEV)\(\[(.+?)\]\)/i);
                 const windowMatch = column.fx.match(/^MOVING_AVG\(\[(.+?)\],\s*(\d+)\)/i);
                 const corrMatch = column.fx.match(/^CORREL\(\[(.+?)\],\s*\[(.+?)\]\)/i);
 
+                // Обработка агрегатных функций на отфильтрованных данных
                 if (aggMatch) {
                     const [_, func, colName] = aggMatch;
                     const targetCol = customWhereColumns.findIndex(c => c.name === colName);
                     if (targetCol >= 0) {
-                        const values = arrayData.map(row => row[targetCol]);
+                        const values = filteredData.map(row => row[targetCol]);
                         const result = calculateAggregations(values, func);
-                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
+                        filteredData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
                     }
                 }
+                // Обработка скользящего среднего на отфильтрованных данных
                 else if (windowMatch) {
                     const [_, colName, windowSize] = windowMatch;
                     const targetCol = customWhereColumns.findIndex(c => c.name === colName);
                     if (targetCol >= 0) {
-                        const values = arrayData.map(row => row[targetCol]);
+                        const values = filteredData.map(row => row[targetCol]);
                         const results = processTimeSeries(values, parseInt(windowSize));
-                        arrayData.forEach((row, i) => row[iCol] = results[i] !== null ? results[i] : 'N/A');
+                        filteredData.forEach((row, i) => row[iCol] = results[i] !== null ? results[i] : 'N/A');
                     }
                 }
+                // Обработка корреляции на отфильтрованных данных
                 else if (corrMatch) {
                     const [_, colName1, colName2] = corrMatch;
                     const targetCol1 = customWhereColumns.findIndex(c => c.name === colName1);
                     const targetCol2 = customWhereColumns.findIndex(c => c.name === colName2);
 
                     if (targetCol1 >= 0 && targetCol2 >= 0) {
-                        const values1 = arrayData.map(row => row[targetCol1]);
-                        const values2 = arrayData.map(row => row[targetCol2]);
+                        const values1 = filteredData.map(row => row[targetCol1]);
+                        const values2 = filteredData.map(row => row[targetCol2]);
                         const result = calculateCorrelation(values1, values2);
-                        arrayData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
+                        filteredData.forEach(row => row[iCol] = result !== null ? result : 'N/A');
                     }
                 }
+                // Обработка обычных формул
                 else {
-                    arrayData.forEach((record, rowIndex) => {
+                    filteredData.forEach((record, rowIndex) => {
                         try {
                             const variables = {};
                             customWhereColumns.forEach((col, index) => {
@@ -648,7 +686,6 @@ const ReportCreation = ({ idReport }) => {
                                     value = parseDateValue(value);
                                     variables[col.name] = value !== null ? value : '""';
                                 } else {
-                                    // Для строковых значений добавляем кавычки
                                     if (typeof value === 'string' && !/^-?\d*\.?\d+$/.test(value)) {
                                         variables[col.name] = `"${value}"`;
                                     } else {
@@ -659,22 +696,14 @@ const ReportCreation = ({ idReport }) => {
 
                             if (column.fx) {
                                 let preparedExpression = prepareExpression(column.fx);
-
-                                // Заменяем ссылки на столбцы их значениями
                                 preparedExpression = preparedExpression.replace(/\[([^\]]+)\]/g,
                                     (match, colName) => variables[colName] || '""'
                                 );
 
-                                // Вычисляем выражение
                                 const result = parser.parse(preparedExpression).evaluate(variables);
 
-                                // Форматируем результат
                                 if (typeof result === 'number') {
-                                    if (Number.isInteger(result)) {
-                                        record[iCol] = result;
-                                    } else {
-                                        record[iCol] = parseFloat(result.toFixed(4));
-                                    }
+                                    record[iCol] = Number.isInteger(result) ? result : parseFloat(result.toFixed(4));
                                 } else {
                                     record[iCol] = result;
                                 }
@@ -686,41 +715,9 @@ const ReportCreation = ({ idReport }) => {
                     });
                 }
             }
-
-            if (column.where && typeof column.where === "object" && !Array.isArray(column.where)) {
-                const { operator = dataWhereColumns[0], value } = column.where;
-                arrayData.forEach((record) => {
-                    try {
-                        let recordValue = record[iCol];
-                        let compareValue = value;
-
-                        if (column.type === 'date' || column.name.toLowerCase().includes('date')) {
-                            recordValue = parseDateValue(recordValue);
-                            compareValue = parseDateValue(compareValue);
-                        } else {
-                            recordValue = normalizeNumbers(String(recordValue));
-                            compareValue = normalizeNumbers(String(compareValue));
-
-                            const numRecordValue = parseFloat(recordValue);
-                            const numCompareValue = parseFloat(compareValue);
-                            if (!isNaN(numRecordValue)) recordValue = numRecordValue;
-                            if (!isNaN(numCompareValue)) compareValue = numCompareValue;
-                        }
-
-                        const conditionExpr = `${recordValue} ${operator} ${compareValue}`;
-                        const condition = parser.parse(conditionExpr).evaluate();
-
-                        if (condition) {
-                            newArrayWhereData.push(record);
-                        }
-                    } catch (error) {
-                        console.error(`Ошибка в выражении для столбца ${column.name}:`, error);
-                        record[iCol] = `Ошибка: ${error.message}`;
-                    }
-                });
-            }
         });
-        return newArrayWhereData.length > 0 ? newArrayWhereData : arrayData;
+
+        return filteredData;
     };
 
     useEffect(() => {
@@ -1007,47 +1004,51 @@ const ReportCreation = ({ idReport }) => {
             <div className={styles.box3}>
                 <div className={styles.box__title}>
                     <img src={screp} alt="screp" />
-                    <label>Добавить условие для отчета:</label>
-                    <span className={styles.addColumnBtn} onClick={handleAddWhereColumn}>+</span>
+                    <label>Фильтрация отчета:</label>
+                    <span className={styles.addColumnBtn} onClick={handleAddFilter}>+</span>
                 </div>
             </div>
 
-            {customWhereColumns.map((column) =>
-                    column.where && !Array.isArray(column.where) && (
-                        <div key={column.name} className={styles.column}>
-                            <select
-                                className={styles.slct_column}
-                                value={column.name || ''}
-                                onChange={(e) => handleColumnWhereChange(column.name, 'name', e.target.value)}
-                            >
-                                {dataHeaders.map((header) => (
-                                    <option key={header.name} value={header.name}>
-                                        {header.title}
-                                    </option>
-                                ))}
-                            </select>
-                            <select
-                                className={styles.slct_column}
-                                value={column.where?.operator || ''}
-                                onChange={(e) => handleColumnWhereChange(column.name, "operator", e.target.value, true)}
-                            >
-                                {dataWhereColumns.map((where) => (
-                                    <option key={where} value={where}>
-                                        {where}
-                                    </option>
-                                ))}
-                            </select>
-                            <input
-                                type="text"
-                                className={styles.inpt_js}
-                                value={column.where?.value || ''}
-                                onChange={(e) => handleColumnWhereChange(column.name, "value", e.target.value, true)}
-                                placeholder="Значение"
-                            />
-                            <button onClick={() => handleDeleteWhereColumn(column.name)}>Удалить</button>
-                        </div>
-                    )
-            )}
+            {filters.map((filter, index) => (
+                <div key={index} className={styles.column}>
+                    <select
+                        className={styles.slct_column}
+                        value={filter.column}
+                        onChange={(e) => handleFilterChange(index, 'column', e.target.value)}
+                    >
+                        {customWhereColumns.map((column) => (
+                            <option key={column.name} value={column.name}>
+                                {column.title || column.name}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        className={styles.slct_column}
+                        value={filter.operator}
+                        onChange={(e) => handleFilterChange(index, 'operator', e.target.value)}
+                    >
+                        <option value="==">равно</option>
+                        <option value="!=">не равно</option>
+                        <option value=">">больше</option>
+                        <option value=">=">больше или равно</option>
+                        <option value="<">меньше</option>
+                        <option value="<=">меньше или равно</option>
+                        <option value="contains">содержит</option>
+                        <option value="not contains">не содержит</option>
+                    </select>
+                    <input
+                        type="text"
+                        className={styles.inpt_js}
+                        value={filter.value}
+                        onChange={(e) => handleFilterChange(index, 'value', e.target.value)}
+                        placeholder="Значение для фильтрации"
+                    />
+                    <button onClick={() => handleDeleteFilter(index)}>
+                        {/*<img src={del} alt="Удалить" width="20" />*/}
+                        Удалить
+                    </button>
+                </div>
+            ))}
 
             <div className={styles.box3}>
                 <div className={styles.box__title}>

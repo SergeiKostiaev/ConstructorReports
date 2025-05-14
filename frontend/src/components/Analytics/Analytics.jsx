@@ -37,6 +37,7 @@ const Analytics = () => {
     const [yAxisType, setYAxisType] = useState("linear");
     const [fullscreenChart, setFullscreenChart] = useState(null);
 
+
     const handleChartTypeChange = (event) => {
         setChartType(event.target.value);
     };
@@ -138,6 +139,8 @@ const Analytics = () => {
 
                 const datasets = displayedColumns.map((column, index) => {
                     const headerIndex = report.headers.findIndex(h => h.name === column);
+                    const columnTitle = report.headers.find(h => h.name === column)?.title || column;
+
                     const data = report.data.map(item => {
                         const value = headerIndex !== -1
                             ? item[headerIndex] ?? item[column]
@@ -146,10 +149,10 @@ const Analytics = () => {
                     }).filter(val => val !== null);
 
                     return {
-                        label: column,
+                        label: columnTitle,
                         data,
-                        backgroundColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 0.8)`,
-                        borderColor: `rgba(${(index * 100 + 50) % 255}, ${(index * 150 + 50) % 255}, ${(index * 200 + 50) % 255}, 1)`,
+                        backgroundColor: `hsla(${(index * 137.508) % 360}, 80%, 60%, 0.8)`,
+                        borderColor: `hsla(${(index * 137.508) % 360}, 80%, 60%, 1)`,
                         borderWidth: 1,
                     };
                 });
@@ -165,6 +168,7 @@ const Analytics = () => {
         if (textColumns.length > 0 && displayedTextColumns.length > 0) {
             const newTextChartDatasets = selectedReports.flatMap(report => {
                 return displayedTextColumns.map(column => {
+                    const columnTitle = report.headers.find(h => h.name === column)?.title || column;
                     const textCount = {};
 
                     report.data.forEach(item => {
@@ -185,10 +189,14 @@ const Analytics = () => {
                     return {
                         labels: textLabels,
                         datasets: [{
-                            label: `Текстовые данные из ${column}`,
+                            label: `Текстовые данные из ${columnTitle}`, // Используем title
                             data: textValues,
-                            backgroundColor: textLabels.map((_, i) => `rgba(${(i * 100 + 50) % 255}, ${(i * 150 + 50) % 255}, ${(i * 200 + 50) % 255}, 0.8)`),
-                            borderColor: textLabels.map((_, i) => `rgba(${(i * 100 + 50) % 255}, ${(i * 150 + 50) % 255}, ${(i * 200 + 50) % 255}, 1)`),
+                            backgroundColor: textLabels.map((_, i) =>
+                                `hsla(${(i * 137.508) % 360}, 80%, 60%, 0.8)`
+                            ),
+                            borderColor: textLabels.map((_, i) =>
+                                `hsla(${(i * 137.508) % 360}, 80%, 60%, 1)`
+                            ),
                             borderWidth: 1,
                         }]
                     };
