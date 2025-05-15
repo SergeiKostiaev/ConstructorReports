@@ -110,7 +110,7 @@ const Home = () => {
 
     const onReportSelect = (id) => {
         setSelectedReportId(id);
-        // setActive(1);
+        setActive(1);
     };
 
     const items = isConfirmed ? [
