@@ -183,6 +183,9 @@ const Home = () => {
         const fileName = file.name.split('.')[0];
         const fileType = file.name.split('.').pop().toLowerCase();
 
+        // Сбрасываем значение input'а, чтобы можно было загружать тот же файл снова
+        e.target.value = '';
+
         const tempReport = {
             id: Date.now(),
             name: fileName,

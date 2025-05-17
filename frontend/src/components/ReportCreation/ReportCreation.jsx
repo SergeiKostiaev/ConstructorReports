@@ -746,6 +746,15 @@ const ReportCreation = ({ idReport }) => {
                     setDataReport(report?.whereData?.length > 0 ? report.whereData : report.data);
                     setSelectedExtension(report.extension);
                     setSelectedCategory(report.category_id);
+
+                    // Восстанавливаем фильтры из свойства where в заголовках
+                    const savedFilters = [];
+                    report.headers.forEach(header => {
+                        if (header.where && header.where.length > 0) {
+                            savedFilters.push(...header.where);
+                        }
+                    });
+                    setFilters(savedFilters);
                 } else {
                     setReportNotFound(true);
                     setCurrentReportId(null);
@@ -895,14 +904,22 @@ const ReportCreation = ({ idReport }) => {
         const bearerToken = localStorage.getItem('api_token');
         const filteredData = filterDataReport();
 
+        // Формируем заголовки с фильтрами
+        const headersWithFilters = customWhereColumns.map(col => {
+            // Находим все фильтры для этого столбца
+            const columnFilters = filters.filter(f => f.column === col.name);
+            return {
+                ...col,
+                where: columnFilters.length > 0 ? columnFilters : [] // Сохраняем фильтры в свойство where
+            };
+        });
+
         const formattedData = filteredData.map((row, rowIndex) => {
             const newRow = {};
-
             customWhereColumns.forEach((col, colIndex) => {
                 newRow[colIndex] = row[colIndex];
                 newRow[col.name] = row[colIndex];
             });
-
             return newRow;
         });
 
@@ -911,7 +928,7 @@ const ReportCreation = ({ idReport }) => {
             category_id: selectedCategory,
             name,
             extension: selectedExtension,
-            headers: customWhereColumns,
+            headers: headersWithFilters, // Используем заголовки с фильтрами
             whereData: newDataReport.length > 0 ? newDataReport : dataReport,
             data: formattedData,
         };
